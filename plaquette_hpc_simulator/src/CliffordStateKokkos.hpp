@@ -7,31 +7,41 @@
 
 #include <Kokkos_Core.hpp>
 
+namespace Plaquette {
+
 /**
  * @brief Kokkos functor for initializing the state vector to the \f$\ket{0}\f$
  * state
  *
  * @tparam Precision Floating point precision of underlying statevector data
  */
-template <typename Precision> struct InitView {
-  Kokkos::View<Precision *> a;
-  size_t tableau_size;
-  InitView(Kokkos::View<Precision *> a_, size_t tableau_size)
-      : a(a_), tableau_size_(tableau_size) {}
+template <typename Precision> struct InitTableauToZeroState {
+  Kokkos::View<Precision *> x_;
+  Kokkos::View<Precision *> z_;
+  Kokkos::View<Precision *> r_;
+  size_t num_qubits_;
+
+  InitTableauToZeroState(Kokkos::View<Precision *> x,
+                         Kokkos::View<Precision *> z,
+                         Kokkos::View<Precision *> r, size_t num_qubits)
+      : x_(x), z_(z), r_(r), num_qubits_(num_qubits) {}
 
   KOKKOS_INLINE_FUNCTION
-  void operator()(const std::size_t i) const { a(i * tableau_size_ + i) = 1.0; }
+  void operator()(const std::size_t i) const {
+    z_[(num_qubits_ + i) * num_qubits_ + i] = 1.0;
+    x_[i * num_qubits_ + i] = 1.0;
+  }
 };
 
-template <typename Precision> struct initZerosFunctor {
-  Kokkos::View<Kokkos::complex<Precision> *> a;
-  size_t tableau_size_;
+// template <typename Precision> struct initZerosFunctor {
+//   Kokkos::View<Kokkos::complex<Precision> *> a;
+//   size_t tableau_size_;
 
-  initZerosFunctor(Kokkos::View<Precision *> a_, size_t tableau_size)
-      : a(a_), tableau_size_(tableau_size) {}
-  KOKKOS_INLINE_FUNCTION
-  void operator()(const std::size_t i) const { a(i) = 0; }
-};
+//   initZerosFunctor(Kokkos::View<Precision *> a_, size_t tableau_size)
+//       : a(a_), tableau_size_(tableau_size) {}
+//   KOKKOS_INLINE_FUNCTION
+//   void operator()(const std::size_t i) const { a(i) = 0; }
+// };
 
 template <class Precision> class CliffordStateKokkos {
 
@@ -39,12 +49,15 @@ public:
   using KokkosExecSpace = Kokkos::DefaultExecutionSpace;
   using KokkosVector = Kokkos::View<Precision *>;
 
+    using UnmanagedHostView =
+      Kokkos::View<Precision *, Kokkos::HostSpace,
+		   Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+  
   CliffordStateKokkos() = delete;
   CliffordStateKokkos(size_t num_qubits,
                       const Kokkos::InitArguments &kokkos_args = {}) {
 
     num_qubits_ = num_qubits;
-    tableau_size_ = (2 * num_qubits_ + 1) * (2 * num_qubits_ + 1);
 
     {
       const std::lock_guard<std::mutex> lock(init_mutex_);
@@ -54,8 +67,16 @@ public:
     }
 
     if (num_qubits > 0) {
-      data_ = std::make_unique<KokkosVector>("data_", Util::exp2(num_qubits));
-      Kokkos::parallel_for(tableau_size_, InitView(*data_));
+      tableau_x_data_ = std::make_unique<KokkosVector>(
+          "tableau_x_", 2 * num_qubits_ * num_qubits_);
+      tableau_z_data_ = std::make_unique<KokkosVector>(
+          "tableau_z_", 2 * num_qubits_ * num_qubits_);
+      tableau_sign_data_ =
+          std::make_unique<KokkosVector>("tableau_r_", 2 * num_qubits_);
+
+      Kokkos::parallel_for(num_qubits_, InitTableauToZeroState(
+                                            *tableau_x_data_, *tableau_z_data_,
+                                            *tableau_sign_data_, num_qubits_));
     }
   }
 
@@ -64,10 +85,11 @@ public:
    *
    * @param num_qubits Number of qubits
    */
-  CliffordStateKokkos(Precision *hostdata_, size_t length,
+  CliffordStateKokkos(Precision *tableau_x_data, Precision *tableau_z_data,
+                      Precision *tableau_sign_data, size_t num_qubits,
                       const Kokkos::InitArguments &kokkos_args = {})
-      : CliffordStateKokkos(Util::log2(length), kokkos_args) {
-    HostToDevice(hostdata_, length);
+      : CliffordStateKokkos(num_qubits, kokkos_args) {
+    HostToDevice(tableau_x_data, tableau_z_data, tableau_sign_data, num_qubits);
   }
 
   /**
@@ -77,8 +99,10 @@ public:
    */
   CliffordStateKokkos(const CliffordStateKokkos &other,
                       const Kokkos::InitArguments &kokkos_args = {})
-      : CliffordStateKokkos(other.getNumQubits(), kokkos_args) {
-    this->DeviceToDevice(other.getData());
+      : CliffordStateKokkos(other.GetNumQubits(), kokkos_args) {
+
+    this->DeviceToDevice(other.GetXTableauData(), other.GetZTableauData(),
+                         other.GetSignTableauData());
   }
 
   /**
@@ -87,7 +111,10 @@ public:
    * @param other Another state vector
    */
   ~CliffordStateKokkos() {
-    data_.reset();
+    tableau_x_data_.reset();
+    tableau_z_data_.reset();
+    tableau_sign_data_.reset();
+
     {
       const std::lock_guard<std::mutex> lock(init_mutex_);
       if (!is_exit_reg_) {
@@ -107,16 +134,11 @@ public:
    * @param num_qubits Number of qubits
    */
   void ResetCliffordState() {
-    if (tableau_size_ > 0) {
-      Kokkos::parallel_for(tableau_size, InitView(*data_, tableau_size_));
+    if (num_qubits_ > 0) {
+      Kokkos::parallel_for(num_qubits_, InitTableauToZeroState(
+                                            *tableau_x_data_, *tableau_z_data_,
+                                            *tableau_sign_data_, num_qubits_));
     }
-  }
-
-  /**
-   * @brief Init zeros for the state-vector on device.
-   */
-  void InitZeros() {
-    Kokkos::parallel_for(getLength(), initZerosFunctor(getData()));
   }
 
   /**
@@ -126,72 +148,90 @@ public:
    */
   size_t GetNumQubits() const { return num_qubits_; }
 
-  /**
-   * @brief Get the size of the state vector
-   *
-   * @return The size of the state vector
-   */
-  size_t GetLength() const { return tableau_size; }
-
   void UpdateData(const CliffordStateKokkos<Precision> &other) {
-    Kokkos::deep_copy(*data_, other.getData());
+    Kokkos::deep_copy(*tableau_x_data_, other.GetXTableauData());
+    Kokkos::deep_copy(*tableau_z_data_, other.GetZTableauData());
+    Kokkos::deep_copy(*tableau_sign_data_, other.GetSignTableauData());
   }
 
-  /**
-   * @brief Get the Kokkos data of the state vector.
-   *
-   * @return The pointer to the data of state vector
-   */
-  [[nodiscard]] auto GetData() const -> KokkosVector & { return *data_; }
-
-  /**
-   * @brief Get the Kokkos data of the state vector
-   *
-   * @return The pointer to the data of state vector
-   */
-  [[nodiscard]] auto GetData() -> KokkosVector & { return *data_; }
+  [[nodiscard]] auto GetXTableauData() const -> KokkosVector & {
+    return *tableau_x_data_;
+  }
+  [[nodiscard]] auto GetZTableauData() const -> KokkosVector & {
+    return *tableau_z_data_;
+  }
+  [[nodiscard]] auto GetSignTableauData() const -> KokkosVector & {
+    return *tableau_sign_data_;
+  }
 
   /**
    * @brief Copy data from the host space to the device space.
    *
    */
-  inline void HostToDevice(Precision *sv, size_t length) {
-    Kokkos::deep_copy(*data_, UnmanagedComplexHostView(sv, length));
+  inline void HostToDevice(Precision *tableau_x_data, Precision *tableau_z_data,
+                           Precision *tableau_sign_data, size_t num_qubits) {
+    Kokkos::deep_copy(
+        *tableau_x_data_,
+        UnmanagedHostView(tableau_x_data, 2 * num_qubits * num_qubits));
+    Kokkos::deep_copy(
+        *tableau_z_data_,
+        UnmanagedHostView(tableau_z_data, 2 * num_qubits * num_qubits));
+    Kokkos::deep_copy(
+        *tableau_sign_data_,
+        UnmanagedHostView(tableau_sign_data, 2 * num_qubits));
   }
 
   /**
    * @brief Copy data from the device space to the host space.
    *
    */
-  inline void DeviceToHost(Precision *sv, size_t length) {
-    Kokkos::deep_copy(UnmanagedComplexHostView(sv, length), *data_);
+  inline void DeviceToHost(Precision *tableau_x_data, Precision *tableau_z_data,
+                           Precision *tableau_sign_data) {
+    Kokkos::deep_copy(
+        UnmanagedHostView(tableau_x_data, 2 * num_qubits_ * num_qubits_),
+        *tableau_x_data_);
+    Kokkos::deep_copy(
+        UnmanagedHostView(tableau_z_data, 2 * num_qubits_ * num_qubits_),
+        *tableau_z_data_);
+    Kokkos::deep_copy(
+        UnmanagedHostView(tableau_sign_data, 2 * num_qubits_),
+        *tableau_sign_data_);
   }
 
   /**
    * @brief Copy data from the device space to the device space.
    *
    */
-  inline void DeviceToDevice(KokkosVector vector_to_copy) {
-    Kokkos::deep_copy(*data_, vector_to_copy);
+  inline void DeviceToDevice(KokkosVector tableau_x_data,
+                             KokkosVector tableau_z_data,
+                             KokkosVector tableau_sign_data) {
+    Kokkos::deep_copy(*tableau_x_data_, tableau_x_data);
+    Kokkos::deep_copy(*tableau_z_data_, tableau_z_data);
+    Kokkos::deep_copy(*tableau_sign_data_, tableau_sign_data);
   }
 
   inline void ApplyHadamardGate(size_t target_qubit) {
     Kokkos::parallel_for(
-        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_ + 1),
-        HadmardGateFunctor<Precision>(*x_, *z_, *r_, num_qubits_,
+        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_),
+        HadmardGateFunctor<Precision>(*tableau_x_data_, *tableau_z_data_,
+                                      *tableau_sign_data_, num_qubits_,
                                       target_qubit));
   }
 
   inline void ApplyPauliXGate(size_t target_qubit) {
     Kokkos::parallel_for(
-        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_ + 1),
-        PauliXGateFunctor<Precision>(*x_, *z_, *r_, num_qubits_, target_qubit));
+        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_),
+        PauliXGateFunctor<Precision>(*tableau_x_data_, *tableau_z_data_,
+                                     *tableau_sign_data_, num_qubits_,
+                                     target_qubit));
   }
 
   inline void ApplyPauliZGate(size_t target_qubit) {
     Kokkos::parallel_for(
-        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_ + 1),
-        PauliXGateFunctor<Precision>(*x_, *z_, *r_, num_qubits_, target_qubit));
+        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_),
+        PauliXGateFunctor<Precision>(*tableau_x_data_, *tableau_z_data_,
+                                     *tableau_sign_data_, num_qubits_,
+                                     target_qubit));
   }
 
   inline void ApplyPauliYGate(size_t target_qubit) {
@@ -201,28 +241,35 @@ public:
 
   inline void ApplyPhaseGate(size_t target_qubit) {
     Kokkos::parallel_for(
-        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_ + 1),
-        PhaseGateFunctor<Precision>(*x_, *z_, *r_, num_qubits_, target_qubit));
+        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_),
+        PhaseGateFunctor<Precision>(*tableau_x_data_, *tableau_z_data_,
+                                    *tableau_sign_data_, num_qubits_,
+                                    target_qubit));
   }
 
   inline void ApplyCPhaseGate(size_t target_qubit, size_t control_qubit) {
     Kokkos::parallel_for(
-        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_ + 1),
-        CPhaseGateFunctor<Precision>(*x_, *z_, *r_, num_qubits_, target_qubit,
-                                     control_qubit));
+        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_),
+        CPhaseGateFunctor<Precision>(*tableau_x_data_, *tableau_z_data_,
+                                     *tableau_sign_data_, num_qubits_,
+                                     target_qubit, control_qubit));
   }
 
   inline void ApplyCNotGate(size_t target_qubit, size_t control_qubit) {
     Kokkos::parallel_for(
-        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_ + 1),
-        CNotGateFunctor<Precision>(*x_, *z_, *r_, num_qubits_, target_qubit,
-                                   control_qubit));
+        Kokkos::RangePolicy<KokkosExecSpace>(0, 2 * num_qubits_),
+        CNotGateFunctor<Precision>(*tableau_x_data_, *tableau_z_data_,
+                                   *tableau_sign_data_, num_qubits_,
+                                   target_qubit, control_qubit));
   }
 
 private:
   size_t num_qubits_;
-  size_t tableau_size_;
   std::mutex init_mutex_;
-  std::unique_ptr<KokkosVector> data_;
+  std::unique_ptr<KokkosVector> tableau_x_data_;
+  std::unique_ptr<KokkosVector> tableau_z_data_;
+  std::unique_ptr<KokkosVector> tableau_sign_data_;
   inline static bool is_exit_reg_ = false;
 };
+
+}; // namespace Plaquette

@@ -94,26 +94,19 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(Kokkos_ENABLE_DEPRECATION_WARNINGS "Enable Kokkos deprecation warnings" OFF)
 
-find_package(Kokkos 3.7)
-if(Kokkos_FOUND)
-    message(STATUS "Found existing Kokkos libraries")
-    add_library(kokkos ALIAS Kokkos::kokkos)
-else()
-    message(STATUS "Building Kokkos from source.")
-    include(FetchContent)
-    FetchContent_Declare(kokkos
-    GIT_REPOSITORY https://github.com/kokkos/kokkos.git
-    GIT_TAG        3.7.00
-    )
-    FetchContent_MakeAvailable(kokkos)
-    get_target_property(PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR kokkos INTERFACE_INCLUDE_DIRECTORIES)
-    set_target_properties(kokkos PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR}")
-endif()
+include(FetchContent)
+FetchContent_Declare(kokkos
+  GIT_REPOSITORY https://github.com/kokkos/kokkos.git
+  # GIT_TAG        main
+)
+FetchContent_MakeAvailable(kokkos)
+get_target_property(PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR kokkos INTERFACE_INCLUDE_DIRECTORIES)
+set_target_properties(kokkos PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR}")
 
 ############################
 ## Create libraries
 ############################
-add_subdirectory(plaquette_hpc_simulator/src)
+add_subdirectory(plaquette_hpc_simulator/src/tests)
 add_library(plaquette_hpc_simulator INTERFACE)
 target_link_libraries(plaquette_hpc_simulator INTERFACE kokkos)
 target_include_directories(plaquette_hpc_simulator INTERFACE "plaquette_hpc_simulator/src")
