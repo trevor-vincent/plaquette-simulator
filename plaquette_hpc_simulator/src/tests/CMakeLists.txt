@@ -31,8 +31,14 @@ include(Catch)
 add_executable(test_runner runner.cpp )
 target_link_libraries(test_runner PUBLIC Catch2::Catch2 kokkos)
 target_include_directories(test_runner PUBLIC ${CMAKE_SOURCE_DIR}/plaquette_hpc_simulator/src)
-target_include_directories(test_runner INTERFACE ${PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR} )
+target_include_directories(test_runner PUBLIC ${PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR} )
 
 message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 target_compile_options(test_runner PRIVATE "$<$<CONFIG:DEBUG>:-Wall>")
 catch_discover_tests(test_runner)
+
+
+# add_library(plaquette_hpc_simulator INTERFACE)
+# target_link_libraries(plaquette_hpc_simulator INTERFACE kokkos)
+# target_include_directories(plaquette_hpc_simulator INTERFACE "plaquette_hpc_simulator/src")
+# target_include_directories(plaquette_hpc_simulator INTERFACE ${PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR} )
