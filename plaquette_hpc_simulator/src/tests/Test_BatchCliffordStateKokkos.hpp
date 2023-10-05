@@ -1,3 +1,5 @@
+#pragma once
+
 #include <algorithm>
 #include <complex>
 #include <iostream>
@@ -13,8 +15,8 @@
 using namespace Plaquette;
 namespace {} // namespace
 
-TEMPLATE_TEST_CASE("CliffordStateKokkos::CheckInitialization",
-                   "[CliffordStateKokkos]", int) {
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Initialization",
+                   "[batch_clifford] [initialization]", int) {
 
   {
     const std::size_t num_qubits = 3;
@@ -24,9 +26,8 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::CheckInitialization",
 }
 
 
-
-TEMPLATE_TEST_CASE("CliffordStateKokkos::CheckInitialization",
-                   "[CliffordStateKokkos]", int) {
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Hadamard",
+                   "[batch_clifford] [hadamard]", int) {
 
   {
     const std::size_t num_qubits = 3;
@@ -35,6 +36,59 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::CheckInitialization",
     kokkos_state_1.ApplyHadamardGate(0);
   }
 }
+
+
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Phase",
+                   "[batch_clifford] [hadamard]", int) {
+
+  {
+    const std::size_t num_qubits = 3;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    kokkos_state_1.ApplyPhaseGate(0);
+  }
+}
+
+
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::PauliX",
+                   "[batch_clifford] [hadamard]", int) {
+
+  {
+    const std::size_t num_qubits = 3;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    kokkos_state_1.ApplyPauliXGate(0);
+  }
+}
+
+
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::PauliZ",
+                   "[batch_clifford] [hadamard]", int) {
+
+  {
+    const std::size_t num_qubits = 3;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    kokkos_state_1.ApplyPauliZGate(0);
+  }
+}
+
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::CNOT",
+                   "[batch_clifford] [cnot]", int) {
+
+  {
+    const std::size_t num_qubits = 3;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    kokkos_state_1.ApplyControlNotGate(0,1);
+  }
+}
+
+
 
 
 
