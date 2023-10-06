@@ -110,7 +110,7 @@ template <class Precision> struct BatchPauliXGateFunctor {
 
   BatchPauliXGateFunctor(Kokkos::View<Precision ***> &x,
                          Kokkos::View<Precision ***> &z,
-                         Kokkos::View<Precision *&> &r, std::size_t num_qubits,
+                         Kokkos::View<Precision **> &r, 
                          std::size_t target_qubit)
       : r_(r), x_(x), z_(z), target_qubit_(target_qubit) {}
 
@@ -124,8 +124,8 @@ template <class Precision> struct BatchPauliXGateFunctor {
 template <class Precision> struct BatchPauliZGateFunctor {
 
   Kokkos::View<Precision ***> x_;
-  Kokkos::View<Precision ***> r_;
-  Kokkos::View<Precision **> z_;
+  Kokkos::View<Precision ***> z_;
+  Kokkos::View<Precision **> r_;
   size_t target_qubit_;
 
   BatchPauliZGateFunctor(Kokkos::View<Precision ***> &x,
