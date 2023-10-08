@@ -28,8 +28,8 @@ public:
   KOKKOS_INLINE_FUNCTION
   void operator()(const int n, const int i, const int j) const {
     x_(n, i, j) = (i == j) ? 1 : 0;
-    z_(n, i, j) = (i == j + num_qubits_) ? 1 : 0;
-    r_(n, i) = (j == 2 * num_qubits_) ? 1 : 0;
+    z_(n, i, j) = (i - num_qubits_ == j) ? 1 : 0;
+    r_(n, i) = (i == 2 * num_qubits_) ? 1 : 0;
   }
 };
 
@@ -44,12 +44,12 @@ public:
   using UnmanagedHostVectorView =
       Kokkos::View<Precision *, Kokkos::HostSpace,
                    Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
-  // using UnmanagedHostMat2DView =
-      // Kokkos::View<Precision **, Kokkos::HostSpace,
-                   // Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
-  // using UnmanagedHostMat3DView =
-      // Kokkos::View<Precision ***, Kokkos::HostSpace,
-                   // Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+  using UnmanagedHostMat2DView =
+      Kokkos::View<Precision **, Kokkos::HostSpace,
+                   Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+  using UnmanagedHostMat3DView =
+      Kokkos::View<Precision ***, Kokkos::HostSpace,
+                   Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
 
   BatchCliffordStateKokkos() = delete;
   BatchCliffordStateKokkos(
@@ -69,56 +69,52 @@ public:
 
     if (num_qubits_ > 0 and batch_size_ > 0) {
       x_ = std::make_unique<KokkosMat3D>("x_", batch_size_, tableau_width_,
-                                         tableau_width_);
+                                         num_qubits_);
 
       z_ = std::make_unique<KokkosMat3D>("z_", batch_size_, tableau_width_,
-                                         tableau_width_);
+                                         num_qubits_);
 
       r_ = std::make_unique<KokkosMat2D>("r_", batch_size_, tableau_width_);
 
       Kokkos::MDRangePolicy<Kokkos::Rank<3>> policy(
-          {0, 0, 0}, {batch_size_, tableau_width_, tableau_width_});
+          {0, 0, 0}, {batch_size_, tableau_width_, num_qubits_});
       Kokkos::parallel_for(policy, InitTableauToZeroState<Precision>(
                                        *x_, *z_, *r_, num_qubits_));
     }
   }
-
-
 
   /**
    * @brief Create a new state vector from data on the host.
    *
    * @param num_qubits Number of qubits
    */
-  BatchCliffordStateKokkos(Precision * x, Precision * z,
-			   Precision * r, size_t num_qubits,
-                      const Kokkos::InitializationSettings &kokkos_args = {})
-      : BatchCliffordStateKokkos(num_qubits, kokkos_args) {
-    HostToDevice(x, z, r, num_qubits);
+  BatchCliffordStateKokkos(
+			   std::vector<Precision> & x,
+			   std::vector<Precision> & z,
+			   std::vector<Precision> & r,
+			   size_t num_qubits,
+			   size_t batch_size,
+      const Kokkos::InitializationSettings &kokkos_args = {})
+    : BatchCliffordStateKokkos(num_qubits, batch_size, kokkos_args) {
+    HostToDevice(x, z, r);
   }
-
+  
   /**
    * @brief Copy constructor
    *
    * @param other Another state vector
    */
-  BatchCliffordStateKokkos(const BatchCliffordStateKokkos &other,
-                      const Kokkos::InitializationSettings &kokkos_args = {})
+  BatchCliffordStateKokkos(
+      const BatchCliffordStateKokkos &other,
+      const Kokkos::InitializationSettings &kokkos_args = {})
       : BatchCliffordStateKokkos(other.GetNumQubits(), kokkos_args) {
 
-    this->DeviceToDevice(other.GetX(), other.GetZ(),
-                         other.GetR());
+    this->DeviceToDevice(other.GetX(), other.GetZ(), other.GetR());
   }
 
-  [[nodiscard]] auto GetX() const -> KokkosMat3D & {
-    return *x_;
-  }
-  [[nodiscard]] auto GetZ() const -> KokkosMat3D & {
-    return *z_;
-  }
-  [[nodiscard]] auto GetR() const -> KokkosMat2D & {
-    return *r_;
-  }
+  [[nodiscard]] auto GetX() const -> KokkosMat3D & { return *x_; }
+  [[nodiscard]] auto GetZ() const -> KokkosMat3D & { return *z_; }
+  [[nodiscard]] auto GetR() const -> KokkosMat2D & { return *r_; }
 
   inline void ApplyHadamardGate(size_t target_qubit) {
 
@@ -174,31 +170,40 @@ public:
    * @brief Copy data from the host space to the device space.
    *
    */
-  inline void HostToDevice(Precision *x, Precision *z, Precision *r,
-                           size_t num_qubits) {
-    Kokkos::deep_copy(*x_, UnmanagedHostMat3DView(x, x_->extent(0), x_->extent(1),
-                                                  x_->extent(2)));
+  inline void HostToDevice(std::vector<Precision> &x, std::vector<Precision> &z,
+                           std::vector<Precision> &r) {
 
-    Kokkos::deep_copy(*z_, UnmanagedHostMat3DView(z, z_->extent(0), z_->extent(1),
-                                                  z_->extent(2)));
+    Kokkos::deep_copy(*x_,
+                      UnmanagedHostMat3DView(x.data(), x_->extent(0),
+                                             x_->extent(1), x_->extent(2)));
 
-    Kokkos::deep_copy(*r_,
-                      UnmanagedHostMat2DView(r, r_->extent(0), r_->extent(1)));
+    Kokkos::deep_copy(*z_,
+                      UnmanagedHostMat3DView(z.data(), z_->extent(0),
+                                             z_->extent(1), z_->extent(2)));
+
+    Kokkos::deep_copy(
+        *r_, UnmanagedHostMat2DView(r.data(), r_->extent(0), r_->extent(1)));
   }
 
-  /**
-   * @brief Copy data from the device space to the host space.
-   *
-   */
-  inline void DeviceToHost(Precision *x, Precision *z, Precision *r) {
+  auto DeviceToHost() {
+    std::vector<Precision> x(x_->size());
+    std::vector<Precision> z(z_->size());
+    std::vector<Precision> r(r_->size());
+
+    std::cout << "xsize = " << x_->size() << std::endl;
+    std::cout << "zsize = " << z_->size() << std::endl;
+    std::cout << "rsize = " << r_->size() << std::endl;
+
+    Kokkos::deep_copy(UnmanagedHostMat3DView(x.data(), x_->extent(0),
+                                             x_->extent(1), x_->extent(2)),
+                      *x_);
+    Kokkos::deep_copy(UnmanagedHostMat3DView(z.data(), z_->extent(0),
+                                             z_->extent(1), z_->extent(2)),
+                      *z_);
     Kokkos::deep_copy(
-		      UnmanagedHostVectorView(x, x_->extent(0)*x_->extent(1)*x_->extent(2)),
-        *x_);
-    // Kokkos::deep_copy(
-        // UnmanagedHostMat3DView(z, z_->extent(0), z_->extent(1), z_->extent(2)),
-        // *z_);
-    // Kokkos::deep_copy(UnmanagedHostMat2DView(r, r_->extent(0), r_->extent(1)),
-                      // *r_);
+        UnmanagedHostMat2DView(r.data(), r_->extent(0), r_->extent(1)), *r_);
+
+    return std::make_tuple(x, z, r);
   }
 
   inline void DeviceToDevice(KokkosMat3D x, KokkosMat3D z, KokkosMat2D r) {

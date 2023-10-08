@@ -11,33 +11,62 @@
 #include <catch2/catch.hpp>
 
 #include "BatchCliffordStateKokkos.hpp"
+#include "Test_Helpers.hpp"
 
 using namespace Plaquette;
 namespace {} // namespace
 
+#define PRINT_MATRIX_BATCH(variable, batch_size, tableau_width, num_qubits)    \
+  do {                                                                         \
+    std::cout << #variable << ":\n";                                           \
+    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {             \
+      std::cout << "Batch " << batch_id << ":\n";                              \
+      for (size_t i = 0; i < tableau_width; ++i) {                             \
+        for (size_t j = 0; j < num_qubits; ++j) {                              \
+          std::cout << variable[batch_id * tableau_width * num_qubits +        \
+                                i * num_qubits + j]                            \
+                    << " ";                                                    \
+        }                                                                      \
+        std::cout << "\n";                                                     \
+      }                                                                        \
+      std::cout << "\n";                                                       \
+    }                                                                          \
+  } while (0)
 
-#define PRINT_VECTOR_3D(v) \
-    std::cout << #v << ":\n"; \
-    for (size_t i = 0; i < v.size(); ++i) { \
-        std::cout << "Batch " << i << ":\n"; \
-        for (size_t j = 0; j < v[i].size(); ++j) { \
-            for (size_t k = 0; k < v[i][j].size(); ++k) { \
-                std::cout << v[i][j][k] << " "; \
-            } \
-            std::cout << "\n"; \
-        } \
-        std::cout << "\n"; \
-    }
+#define PRINT_VECTOR_BATCH(variable, batch_size, tableau_width)                \
+  do {                                                                         \
+    std::cout << #variable << ":\n";                                           \
+    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {             \
+      std::cout << "Batch " << batch_id << ": ";                               \
+      for (size_t i = 0; i < tableau_width; ++i) {                             \
+        std::cout << variable[batch_id * tableau_width + i] << " ";            \
+      }                                                                        \
+      std::cout << "\n";                                                       \
+    }                                                                          \
+  } while (0)
 
-#define PRINT_VECTOR_2D(v) \
-    std::cout << #v << ":\n"; \
-    for (size_t i = 0; i < v.size(); ++i) { \
-        std::cout << "Batch " << i << ":\n"; \
-        for (size_t j = 0; j < v[i].size(); ++j) { \
-            std::cout << v[i][j] << " "; \
-        } \
-        std::cout << "\n\n"; \
-    }
+#define PRINT_VECTOR_3D(v)                                                     \
+  std::cout << #v << ":\n";                                                    \
+  for (size_t i = 0; i < v.size(); ++i) {                                      \
+    std::cout << "Batch " << i << ":\n";                                       \
+    for (size_t j = 0; j < v[i].size(); ++j) {                                 \
+      for (size_t k = 0; k < v[i][j].size(); ++k) {                            \
+        std::cout << v[i][j][k] << " ";                                        \
+      }                                                                        \
+      std::cout << "\n";                                                       \
+    }                                                                          \
+    std::cout << "\n";                                                         \
+  }
+
+#define PRINT_VECTOR_2D(v)                                                     \
+  std::cout << #v << ":\n";                                                    \
+  for (size_t i = 0; i < v.size(); ++i) {                                      \
+    std::cout << "Batch " << i << ":\n";                                       \
+    for (size_t j = 0; j < v[i].size(); ++j) {                                 \
+      std::cout << v[i][j] << " ";                                             \
+    }                                                                          \
+    std::cout << "\n\n";                                                       \
+  }
 
 TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Initialization",
                    "[batch_clifford] [initialization]", int) {
@@ -54,65 +83,124 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::CheckInitialization",
 
   {
     const std::size_t num_qubits = 3;
-    const std::size_t batch_size = 1;
+    const std::size_t batch_size = 2;
     const std::size_t tableau_width = 2 * num_qubits + 1;
 
     BatchCliffordStateKokkos<TestType> kokkos_state_1{num_qubits, batch_size};
+    auto &&[x, z, r] = kokkos_state_1.DeviceToHost();
 
-    std::vector<std::vector<std::vector<TestType>>> x_host(
-        batch_size, std::vector<std::vector<TestType>>(
-                        tableau_width, std::vector<TestType>(num_qubits)));
+    std::vector<std::vector<int>> tableau_x_check = {
+        {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0},
+        {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
 
-    std::vector<std::vector<std::vector<TestType>>> z_host(
-        batch_size, std::vector<std::vector<TestType>>(
-                        tableau_width, std::vector<TestType>(num_qubits)));
+    std::vector<std::vector<int>> tableau_z_check = {
+        {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {1, 0, 0},
+        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}};
 
-    std::vector<std::vector<TestType>> r_host(
-        batch_size, std::vector<TestType>(tableau_width));
+    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {
+      for (size_t i = 0; i < tableau_width; ++i) {
+        if (i != tableau_width - 1) {
+          REQUIRE(r[batch_id * tableau_width + i] == 0);
+        } else {
+          REQUIRE(r[batch_id * tableau_width + i] == 1);
+        }
+        for (size_t j = 0; j < num_qubits; ++j) {
+          REQUIRE(
+              x[batch_id * tableau_width * num_qubits + i * num_qubits + j] ==
+              tableau_x_check[i][j]);
+          REQUIRE(
+              z[batch_id * tableau_width * num_qubits + i * num_qubits + j] ==
+              tableau_z_check[i][j]);
+        }
+      }
+    }
+  }
+}
 
-    kokkos_state_1.DeviceToHost(&x_host[0][0][0], &z_host[0][0][0],
-                                &r_host[0][0]);
+TEMPLATE_TEST_CASE("CliffordStateKokkos::XZRConstructor",
+                   "[CliffordStateKokkos]", int) {
 
+  {
+    const std::size_t num_qubits = 3;
+    const std::size_t batch_size = 1;
+    const std::size_t tableau_width = 2 * num_qubits + 1;
 
+    // std::vector<std::vector<int>> tableau{
+    //     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0},
+    //     {1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0}, {1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1},
+    //     {0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0}, {0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0},
+    //     {0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1}, {0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+    //     {1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0},
+    //     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    // };
 
-    PRINT_VECTOR_3D(x_host);
-    PRINT_VECTOR_3D(z_host);
-    PRINT_VECTOR_2D(r_host);
+    std::vector<std::vector<int>> x_check = {
+        {1, 0, 0, 0, 0}, {1, 1, 0, 0, 0}, {1, 1, 1, 0, 1}, {1, 1, 0, 1, 0},
+        {0, 1, 0, 0, 1}, {0, 0, 0, 0, 1}, {0, 1, 0, 0, 0}, {0, 0, 0, 0, 0},
+        {1, 1, 0, 1, 0}, {1, 1, 0, 0, 1}, {0, 0, 0, 0, 0}};
+
+    std::vector<std::vector<int>> z_check = {
+        {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 1, 0, 1, 0}, {0, 0, 0, 0, 1},
+        {0, 1, 1, 1, 0}, {1, 1, 0, 0, 1}, {0, 1, 0, 1, 0}, {0, 0, 0, 1, 0},
+        {0, 0, 0, 1, 0}, {0, 1, 0, 1, 0}, {0, 0, 0, 0, 0}};
+
+    std::vector<int> r_check = {0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1};
+
+    std::vector<int> x_flat = {
+      1, 0, 0, 0, 0,
+      1, 1, 0, 0, 0,
+      1, 1, 1, 0, 1,
+      1, 1, 0, 1, 0,
+      0, 1, 0, 0, 1,
+      0, 0, 0, 0, 1,
+      0, 1, 0, 0, 0,
+      0, 0, 0, 0, 0,
+      1, 1, 0, 1, 0,
+      1, 1, 0, 0, 1,
+      0, 0, 0, 0, 0
+    };
+
+std::vector<int> z_flat = {
+    0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0,
+    0, 1, 0, 1, 0,
+    0, 0, 0, 0, 1,
+    0, 1, 1, 1, 0,
+    1, 1, 0, 0, 1,
+    0, 1, 0, 1, 0,
+    0, 0, 0, 1, 0,
+    0, 0, 0, 1, 0,
+    0, 1, 0, 1, 0,
+    0, 0, 0, 0, 0
+};
     
-    //  std::vector<std::vector<int>> tableau_x_check = {{
-    //      {1, 0, 0},
-    //      {0, 1, 0},
-    //      {0, 0, 1},
-    //      {0, 0, 0},
-    //      {0, 0, 0},
-    //      {0, 0, 0},
-    // 	{0, 0, 0}
-    //  }};
+    
+    BatchCliffordStateKokkos<TestType> kokkos_state_1{x_flat, z_flat, r_check, num_qubits,
+                                                      batch_size};
 
-    //  std::vector<std::vector<int>> tableau_z_check = {{
-    // 	{0, 0, 0},
-    // 	{0, 0, 0},
-    // 	{0, 0, 0},
-    // 	{1, 0, 0},
-    // 	{0, 1, 0},
-    // 	{0, 0, 1},
-    // 	{0, 0, 0}
-    //    }};
+    auto &&[x, z, r] = kokkos_state_1.DeviceToHost();
 
-    // for (int i = 0; i < 2*num_qubits*num_qubits; ++i) {
-    //   REQUIRE(tableau_x_host[i] ==
-    //   tableau_x_check[i/num_qubits][i%num_qubits]); REQUIRE(tableau_z_host[i]
-    //   == tableau_z_check[i/num_qubits][i%num_qubits]);
-    // }
 
-    // for (int i = 0; i < 2*num_qubits; ++i) {
-    //   REQUIRE(tableau_sign_host[i] == 0);
-    // }
+    PRINT_MATRIX_BATCH(x_flat, batch_size, tableau_width, num_qubits);
+    PRINT_MATRIX_BATCH(z_flat, batch_size, tableau_width, num_qubits);
 
-    // PRINT_MATRIX(tableau_x_host, 2*num_qubits, num_qubits);
-    // PRINT_MATRIX(tableau_z_host, 2*num_qubits, num_qubits);
-    // PRINT_MATRIX(tableau_sign_host, 2*num_qubits, 1);
-    // REQUIRE(1==0);
+    
+    PRINT_MATRIX_BATCH(x, batch_size, tableau_width, num_qubits);
+    PRINT_MATRIX_BATCH(z, batch_size, tableau_width, num_qubits);
+    
+    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {
+      for (size_t i = 0; i < tableau_width; ++i) {
+        REQUIRE(r[batch_id * tableau_width + i] == r_check[i]);
+        for (size_t j = 0; j < num_qubits; ++j) {
+          REQUIRE(
+              x[batch_id * tableau_width * num_qubits + i * num_qubits + j] ==
+              x_check[i][j]);
+          REQUIRE(
+              z[batch_id * tableau_width * num_qubits + i * num_qubits + j] ==
+              z_check[i][j]);
+        }
+      }
+    }
   }
 }
 
