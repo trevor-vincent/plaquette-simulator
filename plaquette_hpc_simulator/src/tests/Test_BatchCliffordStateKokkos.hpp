@@ -121,18 +121,9 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::XZRConstructor",
                    "[CliffordStateKokkos]", int) {
 
   {
-    const std::size_t num_qubits = 3;
+    const std::size_t num_qubits = 5;
     const std::size_t batch_size = 1;
     const std::size_t tableau_width = 2 * num_qubits + 1;
-
-    // std::vector<std::vector<int>> tableau{
-    //     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0},
-    //     {1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0}, {1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1},
-    //     {0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0}, {0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0},
-    //     {0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1}, {0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
-    //     {1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0},
-    //     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    // };
 
     std::vector<std::vector<int>> x_check = {
         {1, 0, 0, 0, 0}, {1, 1, 0, 0, 0}, {1, 1, 1, 0, 1}, {1, 1, 0, 1, 0},
@@ -146,48 +137,21 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::XZRConstructor",
 
     std::vector<int> r_check = {0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1};
 
-    std::vector<int> x_flat = {
-      1, 0, 0, 0, 0,
-      1, 1, 0, 0, 0,
-      1, 1, 1, 0, 1,
-      1, 1, 0, 1, 0,
-      0, 1, 0, 0, 1,
-      0, 0, 0, 0, 1,
-      0, 1, 0, 0, 0,
-      0, 0, 0, 0, 0,
-      1, 1, 0, 1, 0,
-      1, 1, 0, 0, 1,
-      0, 0, 0, 0, 0
-    };
+    std::vector<int> x_flat = {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0,
+                               1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0,
+                               0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+                               0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0};
 
-std::vector<int> z_flat = {
-    0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0,
-    0, 1, 0, 1, 0,
-    0, 0, 0, 0, 1,
-    0, 1, 1, 1, 0,
-    1, 1, 0, 0, 1,
-    0, 1, 0, 1, 0,
-    0, 0, 0, 1, 0,
-    0, 0, 0, 1, 0,
-    0, 1, 0, 1, 0,
-    0, 0, 0, 0, 0
-};
-    
-    
-    BatchCliffordStateKokkos<TestType> kokkos_state_1{x_flat, z_flat, r_check, num_qubits,
-                                                      batch_size};
+    std::vector<int> z_flat = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
+                               0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0,
+                               0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0,
+                               0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0};
+
+    BatchCliffordStateKokkos<TestType> kokkos_state_1{x_flat, z_flat, r_check,
+                                                      num_qubits, batch_size};
 
     auto &&[x, z, r] = kokkos_state_1.DeviceToHost();
 
-
-    PRINT_MATRIX_BATCH(x_flat, batch_size, tableau_width, num_qubits);
-    PRINT_MATRIX_BATCH(z_flat, batch_size, tableau_width, num_qubits);
-
-    
-    PRINT_MATRIX_BATCH(x, batch_size, tableau_width, num_qubits);
-    PRINT_MATRIX_BATCH(z, batch_size, tableau_width, num_qubits);
-    
     for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {
       for (size_t i = 0; i < tableau_width; ++i) {
         REQUIRE(r[batch_id * tableau_width + i] == r_check[i]);
@@ -204,36 +168,130 @@ std::vector<int> z_flat = {
   }
 }
 
-TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Hadamard",
-                   "[batch_clifford] [hadamard]", int) {
-
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Measure0",
+                   "[batch_clifford] [measure] [measure0]", int) {
   {
-    const std::size_t num_qubits = 3;
+    const std::size_t num_qubits = 1;
     const std::size_t batch_size = 1;
     BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
     kokkos_state_1.ApplyHadamardGate(0);
-  }
-}
-
-TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Phase",
-                   "[batch_clifford] [hadamard]", int) {
-
-  {
-    const std::size_t num_qubits = 3;
-    const std::size_t batch_size = 1;
-    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
     kokkos_state_1.ApplyPhaseGate(0);
+    kokkos_state_1.ApplyPhaseGate(0);
+    kokkos_state_1.ApplyHadamardGate(0);
+    kokkos_state_1.MeasureQubit(0);
+    auto result = kokkos_state_1.GetMeasurement(0, 0);
+    REQUIRE(result.value().first == 1);  // Check the measured value.
+    REQUIRE(result.value().second == 1); // Check that the measurement was
   }
 }
 
-TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::PauliX",
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Measure1",
+                   "[batch_clifford] [measure] [measure1]", int) {
+  {
+    const std::size_t num_qubits = 1;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    kokkos_state_1.MeasureQubit(0);
+    auto result = kokkos_state_1.GetMeasurement(0, 0);
+    REQUIRE(result.value().first == 0);  // Check the measured value.
+    REQUIRE(result.value().second == 1); // Check that the measurement was
+  }
+}
+
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Measure2",
+                   "[batch_clifford] [measure] [measure2]", int) {
+  {
+    const std::size_t num_qubits = 2;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    kokkos_state_1.MeasureQubit(0);
+    kokkos_state_1.MeasureQubit(1);
+    auto result_0 = kokkos_state_1.GetMeasurement(0, 0);
+    auto result_1 = kokkos_state_1.GetMeasurement(1, 0);
+    REQUIRE(result_0.value().first == 0);  // Check the measured value.
+    REQUIRE(result_0.value().second == 1); // Check that the measurement was
+    REQUIRE(result_1.value().first == 0);  // Check the measured value.
+    REQUIRE(result_1.value().second == 1); // Check that the measurement was    
+  }
+}
+
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Measure3",
+                   "[batch_clifford] [measure] [measure3]", int) {
+  {
+    const std::size_t num_qubits = 2;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+
+    kokkos_state_1.ApplyHadamardGate(0);
+    kokkos_state_1.ApplyPhaseGate(0);
+    kokkos_state_1.ApplyPhaseGate(0);
+    kokkos_state_1.ApplyHadamardGate(0);    
+    kokkos_state_1.MeasureQubit(0);
+    kokkos_state_1.MeasureQubit(1);
+    auto result_0 = kokkos_state_1.GetMeasurement(0, 0);
+    auto result_1 = kokkos_state_1.GetMeasurement(1, 0);
+    
+    REQUIRE(result_0.value().first == 1);  // Check the measured value.
+    REQUIRE(result_0.value().second == 1); // Check that the measurement was
+    REQUIRE(result_1.value().first == 0);  // Check the measured value.
+    REQUIRE(result_1.value().second == 1); // Check that the measurement was    
+  }
+}
+
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::EPR",
+                   "[batch_clifford] [epr]", int) {
+
+  {
+    const std::size_t num_qubits = 2;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    // Apply quantum operations.
+    kokkos_state_1.ApplyHadamardGate(0);
+    kokkos_state_1.ApplyControlNotGate(0, 1);
+
+    kokkos_state_1.MeasureQubit(0);
+    kokkos_state_1.MeasureQubit(1);
+    auto result_0 = kokkos_state_1.GetMeasurement(0, 0);
+    auto result_1 = kokkos_state_1.GetMeasurement(1, 0);
+    
+    REQUIRE(result_0.value().second == 0); // Check that the measurement was
+    REQUIRE(result_1.value().second == 1); // Check that the measurement was    
+    REQUIRE(result_1.value().first == result_0.value().first);  // Check the measured value.
+
+  }
+}
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::PhaseKickback",
                    "[batch_clifford] [hadamard]", int) {
 
   {
-    const std::size_t num_qubits = 3;
+    const std::size_t num_qubits = 2;
     const std::size_t batch_size = 1;
     BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
-    kokkos_state_1.ApplyPauliXGate(0);
+    kokkos_state_1.ApplyHadamardGate(1);
+    kokkos_state_1.ApplyPhaseGate(1);
+    kokkos_state_1.ApplyHadamardGate(0);
+    kokkos_state_1.ApplyControlNotGate(0, 1);
+    kokkos_state_1.MeasureQubit(1);
+    auto result_0 = kokkos_state_1.GetMeasurement(0, 0);
+    REQUIRE(result_0.value().second == 0); // Check that the measurement was not deterministic.
+
+    if (result_0.value().first){
+      kokkos_state_1.ApplyPhaseGate(0);
+      kokkos_state_1.ApplyPhaseGate(0);
+    }
+    kokkos_state_1.ApplyPhaseGate(0);
+    kokkos_state_1.ApplyHadamardGate(0);
+
+    kokkos_state_1.MeasureQubit(0);
+    auto result_1 = kokkos_state_1.GetMeasurement(1, 0);
+    REQUIRE(result_1.value().second == 1); // Check that the measurement was
+    REQUIRE(result_1.value().first == 1);  // Check the measured value.
+    
   }
 }
 
