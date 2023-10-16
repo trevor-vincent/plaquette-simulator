@@ -13,7 +13,7 @@
 
 namespace Plaquette {
 
-template <class Precision> class InitTableauToZeroState {
+template <class Precision> class InitTableauToZeroStateFunctor {
 private:
   Kokkos::View<Precision ***> x_;
   Kokkos::View<Precision ***> z_;
@@ -21,9 +21,10 @@ private:
   size_t num_qubits_;
 
 public:
-  InitTableauToZeroState(Kokkos::View<Precision ***> x_,
-                         Kokkos::View<Precision ***> z_,
-                         Kokkos::View<Precision **> r_, size_t num_qubits)
+  InitTableauToZeroStateFunctor(Kokkos::View<Precision ***> x_,
+                                Kokkos::View<Precision ***> z_,
+                                Kokkos::View<Precision **> r_,
+                                size_t num_qubits)
       : x_(x_), z_(z_), r_(r_), num_qubits_(num_qubits) {}
 
   KOKKOS_INLINE_FUNCTION
@@ -31,6 +32,28 @@ public:
     x_(n, i, j) = (i == j) ? 1 : 0;
     z_(n, i, j) = (i - num_qubits_ == j) ? 1 : 0;
     r_(n, i) = (i == 2 * num_qubits_) ? 1 : 0;
+  }
+};
+
+template <class Precision> class CheckSumFunctor {
+private:
+  Kokkos::View<Precision ***> x_;
+  Kokkos::View<Precision ***> z_;
+  Kokkos::View<Precision **> r_;
+  size_t num_qubits_;
+
+public:
+  CheckSumFunctor(Kokkos::View<Precision ***> x_,
+                  Kokkos::View<Precision ***> z_, Kokkos::View<Precision **> r_,
+                  size_t num_qubits)
+      : x_(x_), z_(z_), r_(r_), num_qubits_(num_qubits) {}
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const int n, const int i, const int j,
+                  Precision &lsum) const {
+    lsum += x_(n, i, j);
+    lsum += z_(n, i, j);
+    lsum += (j == 0) ? r_(n, i) : 0;
   }
 };
 
@@ -45,14 +68,14 @@ private:
     std::unique_ptr<Kokkos::View<Precision *>> measurement_determined_device;
 
     void CopyToHost() {
-      if (!measurement_results_host.empty()) {	
+      if (!measurement_results_host.empty()) {
         return;
       }
       auto batch_size = (*measurement_results_device).extent(0);
-      
+
       measurement_results_host.resize(batch_size);
       measurement_determined_host.resize(batch_size);
-      
+
       using UnmanagedHostVectorView =
           Kokkos::View<Precision *, Kokkos::HostSpace,
                        Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
@@ -60,7 +83,7 @@ private:
       Kokkos::deep_copy(
           UnmanagedHostVectorView(measurement_results_host.data(), batch_size),
           *measurement_results_device);
-      
+
       Kokkos::deep_copy(UnmanagedHostVectorView(
                             measurement_determined_host.data(), batch_size),
                         *measurement_determined_device);
@@ -91,7 +114,7 @@ public:
     num_qubits_ = num_qubits;
     batch_size_ = batch_size;
     tableau_width_ = 2 * num_qubits_ + 1;
-    
+
     {
       const std::lock_guard<std::mutex> lock(init_mutex_);
       if (!Kokkos::is_initialized()) {
@@ -110,18 +133,20 @@ public:
 
       Kokkos::MDRangePolicy<Kokkos::Rank<3>> policy(
           {0, 0, 0}, {batch_size_, tableau_width_, num_qubits_});
-      Kokkos::parallel_for(policy, InitTableauToZeroState<Precision>(
+      Kokkos::parallel_for(policy, InitTableauToZeroStateFunctor<Precision>(
                                        *x_, *z_, *r_, num_qubits_));
     }
 
     if (seed >= 0) {
+      seed_ = seed;
       rand_pool_ =
           std::make_unique<Kokkos::Random_XorShift64_Pool<KokkosExecSpace>>(
               seed);
     } else {
+      seed_ = 213434232223;
       rand_pool_ =
           std::make_unique<Kokkos::Random_XorShift64_Pool<KokkosExecSpace>>(
-              213434232223);
+              seed_);
     }
   }
 
@@ -133,7 +158,8 @@ public:
   BatchCliffordStateKokkos(
       std::vector<Precision> &x, std::vector<Precision> &z,
       std::vector<Precision> &r, size_t num_qubits, size_t batch_size,
-      int seed = -1, const Kokkos::InitializationSettings &kokkos_args = {})
+      long int seed = -1,
+      const Kokkos::InitializationSettings &kokkos_args = {})
       : BatchCliffordStateKokkos(num_qubits, batch_size, seed, kokkos_args) {
     HostToDevice(x, z, r);
   }
@@ -146,7 +172,8 @@ public:
   BatchCliffordStateKokkos(
       const BatchCliffordStateKokkos &other,
       const Kokkos::InitializationSettings &kokkos_args = {})
-      : BatchCliffordStateKokkos(other.GetNumQubits(), kokkos_args) {
+      : BatchCliffordStateKokkos(other.GetNumQubits(), other.GetBatchSize(),
+                                 other.GetSeed(), kokkos_args) {
 
     this->DeviceToDevice(other.GetX(), other.GetZ(), other.GetR());
   }
@@ -154,6 +181,16 @@ public:
   [[nodiscard]] auto GetX() const -> KokkosMat3D & { return *x_; }
   [[nodiscard]] auto GetZ() const -> KokkosMat3D & { return *z_; }
   [[nodiscard]] auto GetR() const -> KokkosMat2D & { return *r_; }
+
+  inline auto CheckSum() {
+    Precision check_sum = 0;
+    Kokkos::MDRangePolicy<Kokkos::Rank<3>> policy(
+        {0, 0, 0}, {batch_size_, tableau_width_, num_qubits_});
+    Kokkos::parallel_reduce(
+        policy, CheckSumFunctor<Precision>(*x_, *z_, *r_, num_qubits_),
+        check_sum);
+    return check_sum;
+  }
 
   inline void ApplyHadamardGate(size_t target_qubit) {
 
@@ -248,12 +285,14 @@ public:
   }
 
   size_t GetNumQubits() const { return num_qubits_; }
+  size_t GetBatchSize() const { return batch_size_; }
+  long int GetSeed() const { return seed_; }
 
   void ResetCliffordState() {
     if (num_qubits_ > 0 and batch_size_ > 0) {
       Kokkos::MDRangePolicy<Kokkos::Rank<3>> policy(
           {0, 0, 0}, {batch_size_, tableau_width_, tableau_width_});
-      Kokkos::parallel_for(policy, InitTableauToZeroState<Precision>(
+      Kokkos::parallel_for(policy, InitTableauToZeroStateFunctor<Precision>(
                                        *x_, *z_, *r_, num_qubits_));
     }
   }
@@ -266,17 +305,18 @@ public:
     if (!measurement_id.has_value()) {
       measurements_.push_back(Measurement());
       measurement_id = measurements_.size() - 1;
-      measurements_.back().qubit_measured = target_qubit;      
+      measurements_.back().qubit_measured = target_qubit;
       std::string qubit_name = "q" + std::to_string(target_qubit);
       std::string measurement_name = "m" + std::to_string(*measurement_id);
-      std::string results_name = qubit_name + "_" + measurement_name + "_results";
-      std::string determined_name = qubit_name + "_" + measurement_name + "_determined";      
+      std::string results_name =
+          qubit_name + "_" + measurement_name + "_results";
+      std::string determined_name =
+          qubit_name + "_" + measurement_name + "_determined";
       measurements_.back().measurement_results_device =
-	std::make_unique<KokkosVector>(results_name,batch_size_);
+          std::make_unique<KokkosVector>(results_name, batch_size_);
       measurements_.back().measurement_determined_device =
-          std::make_unique<KokkosVector>(determined_name,batch_size_);
-    }
-    else {
+          std::make_unique<KokkosVector>(determined_name, batch_size_);
+    } else {
       PLAQUETTE_ABORT_IF(measurement_id.value() >= measurements_.size(),
                          "Measurement id is out of range.");
     }
@@ -335,6 +375,7 @@ private:
   size_t num_qubits_;
   size_t batch_size_;
   size_t tableau_width_;
+  long int seed_;
   std::mutex init_mutex_;
   std::unique_ptr<KokkosMat3D> x_;
   std::unique_ptr<KokkosMat3D> z_;

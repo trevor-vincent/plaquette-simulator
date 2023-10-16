@@ -40,7 +40,7 @@ Precision PauliProductPhase(Precision x1, Precision z1, Precision x2, Precision 
       return 0;
     }
     // XY
-    else if (x2 == 1 and z2 == 1) {
+    else if (x2 == 1 and z2== 1) {
       return +1;
     }
     // XZ
@@ -98,10 +98,11 @@ ZeroRow(Kokkos::View<Precision ***> x, Kokkos::View<Precision ***> z,
 template <typename Precision>
 KOKKOS_INLINE_FUNCTION
 Precision RowProductSign(Kokkos::View<Precision ***> x,
-                                                Kokkos::View<Precision ***> z,
-                                                Kokkos::View<Precision **> r,
-                                                int batch_id, int i, int k) {
+			 Kokkos::View<Precision ***> z,
+			 Kokkos::View<Precision **> r,
+			 int batch_id, int i, int k) {
   size_t num_qubits = x.extent(2);
+  std::cout << "num_qubits = " << num_qubits << std::endl;
   Precision pauli_phases = 0;
   for (size_t j = 0; j < num_qubits; ++j) {
     pauli_phases += PauliProductPhase(x(batch_id, i, j), z(batch_id, i, j),
@@ -111,6 +112,30 @@ Precision RowProductSign(Kokkos::View<Precision ***> x,
   return (r(batch_id, i) ^ r(batch_id, k) ^ p);  
 }
 
+// mainly for testing
+template <class Precision> struct BatchRowProductSignFunctor {
+
+  Kokkos::View<Precision ***> x_;
+  Kokkos::View<Precision ***> z_;
+  Kokkos::View<Precision **> r_;
+  Kokkos::View<Precision *> results_vector_;
+  size_t row_i_;
+  size_t row_k_;
+
+  BatchRowProductSignFunctor(Kokkos::View<Precision ***> x, 
+			     Kokkos::View<Precision ***> z,
+			     Kokkos::View<Precision **> r,
+			     Kokkos::View<Precision *> results_vector,
+			     std::size_t row_i,
+			     std::size_t row_k)
+    : r_(r), x_(x), z_(z), row_i_(row_i), row_k_(row_k), results_vector_(results_vector) {}
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const std::size_t batch_id) const {
+    results_vector_[batch_id] = RowProductSign(x_, z_, r_, batch_id, row_i_, row_k_);
+  }
+};
+  
 template <typename Precision>
 KOKKOS_INLINE_FUNCTION void
 RowMultiply(Kokkos::View<Precision ***> x, Kokkos::View<Precision ***> z,
@@ -123,6 +148,30 @@ RowMultiply(Kokkos::View<Precision ***> x, Kokkos::View<Precision ***> z,
   }
 }
 
+// mainly for testing
+template <class Precision> struct BatchRowMultiplyFunctor {
+
+  Kokkos::View<Precision ***> x_;
+  Kokkos::View<Precision ***> z_;
+  Kokkos::View<Precision **> r_;
+  size_t row_i_;
+  size_t row_k_;
+
+  BatchRowMultiplyFunctor(Kokkos::View<Precision ***> x,
+                      Kokkos::View<Precision ***> z,
+                      Kokkos::View<Precision **> r,
+				std::size_t row_i,
+				std::size_t row_k)
+      : r_(r), x_(x), z_(z), row_i_(row_i), row_k_(row_k) {}
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const std::size_t batch_id) const {
+    RowMultiply(x_, z_, r_, batch_id, row_i_, row_k_);
+  }
+};
+
+
+  
 template <typename Precision>
 KOKKOS_INLINE_FUNCTION 
 Precision MeasureDetermined(Kokkos::View<Precision ***> x, Kokkos::View<Precision ***> z,
@@ -199,24 +248,45 @@ template <class Precision> struct BatchMeasureFunctor {
   }
 };
 
-// mainly for testing
+// // mainly for testing
+// template <class Precision> struct BatchMeasureDeterminedFunctor {
+
+//   Kokkos::View<Precision ***> x_;
+//   Kokkos::View<Precision ***> z_;
+//   Kokkos::View<Precision **> r_;
+//   Kokkos::View<Precision *> measurement_result_;
+//   size_t target_qubit_;
+
+//   BatchMeasureDeterminedFunctor(Kokkos::View<Precision ***> x,
+//                       Kokkos::View<Precision ***> z,
+//                       Kokkos::View<Precision **> r,
+//                       Kokkos::View<Precision *> measurement_result,
+//                       std::size_t target_qubit)
+//       : r_(r), x_(x), z_(z), measurement_result_(measurement_result),
+//         target_qubit_(target_qubit) {}
+
+//   KOKKOS_INLINE_FUNCTION
+//   void operator()(const std::size_t batch_id) const {
+//     measurement_result_[batch_id] =
+//         MeasureDetermined(x_, z_, r_, batch_id, target_qubit_);
+//   }
+// };
+
 template <class Precision> struct BatchMeasureDeterminedFunctor {
 
   Kokkos::View<Precision ***> x_;
   Kokkos::View<Precision ***> z_;
   Kokkos::View<Precision **> r_;
   Kokkos::View<Precision *> measurement_result_;
-  Kokkos::Random_XorShift64_Pool<> rand_pool_;
   size_t target_qubit_;
 
-  BatchMeasureDeterminedFunctor(Kokkos::View<Precision ***> &x,
-                      Kokkos::View<Precision ***> &z,
-                      Kokkos::View<Precision **> &r,
-                      Kokkos::View<Precision *> &measurement_result,
-                      Kokkos::Random_XorShift64_Pool<> &rand_pool,
+  BatchMeasureDeterminedFunctor(Kokkos::View<Precision ***> x,
+                      Kokkos::View<Precision ***> z,
+                      Kokkos::View<Precision **> r,
+                      Kokkos::View<Precision *> measurement_result,
                       std::size_t target_qubit)
       : r_(r), x_(x), z_(z), measurement_result_(measurement_result),
-        rand_pool_(rand_pool), target_qubit_(target_qubit) {}
+        target_qubit_(target_qubit) {}
 
   KOKKOS_INLINE_FUNCTION
   void operator()(const std::size_t batch_id) const {
@@ -224,6 +294,7 @@ template <class Precision> struct BatchMeasureDeterminedFunctor {
         MeasureDetermined(x_, z_, r_, batch_id, target_qubit_);
   }
 };
+  
 
 // mainly for testing
 // template <class Precision> struct BatchMeasureRandomFunctor {
