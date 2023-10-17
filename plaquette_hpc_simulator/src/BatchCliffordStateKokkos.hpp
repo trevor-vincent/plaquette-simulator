@@ -109,6 +109,7 @@ public:
   BatchCliffordStateKokkos() = delete;
   BatchCliffordStateKokkos(
       size_t num_qubits, size_t batch_size, int seed = -1,
+      bool init_to_zero_state = true,
       const Kokkos::InitializationSettings &kokkos_args = {}) {
 
     num_qubits_ = num_qubits;
@@ -131,10 +132,12 @@ public:
 
       r_ = std::make_unique<KokkosMat2D>("r_", batch_size_, tableau_width_);
 
-      Kokkos::MDRangePolicy<Kokkos::Rank<3>> policy(
-          {0, 0, 0}, {batch_size_, tableau_width_, num_qubits_});
-      Kokkos::parallel_for(policy, InitTableauToZeroStateFunctor<Precision>(
-                                       *x_, *z_, *r_, num_qubits_));
+      if (init_to_zero_state) {
+        Kokkos::MDRangePolicy<Kokkos::Rank<3>> policy(
+            {0, 0, 0}, {batch_size_, tableau_width_, num_qubits_});
+        Kokkos::parallel_for(policy, InitTableauToZeroStateFunctor<Precision>(
+                                         *x_, *z_, *r_, num_qubits_));
+      }
     }
 
     if (seed >= 0) {
@@ -160,7 +163,8 @@ public:
       std::vector<Precision> &r, size_t num_qubits, size_t batch_size,
       long int seed = -1,
       const Kokkos::InitializationSettings &kokkos_args = {})
-      : BatchCliffordStateKokkos(num_qubits, batch_size, seed, kokkos_args) {
+      : BatchCliffordStateKokkos(num_qubits, batch_size, seed, false,
+                                 kokkos_args) {
     HostToDevice(x, z, r);
   }
 
@@ -173,7 +177,7 @@ public:
       const BatchCliffordStateKokkos &other,
       const Kokkos::InitializationSettings &kokkos_args = {})
       : BatchCliffordStateKokkos(other.GetNumQubits(), other.GetBatchSize(),
-                                 other.GetSeed(), kokkos_args) {
+                                 other.GetSeed(), false, kokkos_args) {
 
     this->DeviceToDevice(other.GetX(), other.GetZ(), other.GetR());
   }
@@ -182,10 +186,13 @@ public:
   [[nodiscard]] auto GetZ() const -> KokkosMat3D & { return *z_; }
   [[nodiscard]] auto GetR() const -> KokkosMat2D & { return *r_; }
 
-  inline auto CheckSum() {
+  inline auto CheckSum(int starting_batch_id = 0, int ending_batch_id = -1)
+      -> Precision {
     Precision check_sum = 0;
     Kokkos::MDRangePolicy<Kokkos::Rank<3>> policy(
-        {0, 0, 0}, {batch_size_, tableau_width_, num_qubits_});
+        {starting_batch_id, 0, 0},
+        {ending_batch_id < 0 ? batch_size_ : ending_batch_id, tableau_width_,
+         num_qubits_});
     Kokkos::parallel_reduce(
         policy, CheckSumFunctor<Precision>(*x_, *z_, *r_, num_qubits_),
         check_sum);
@@ -200,22 +207,31 @@ public:
                                      *x_, *z_, *r_, target_qubit));
   }
 
-  inline void ApplyControlNotGate(size_t target_qubit, size_t control_qubit) {
+  inline void ApplyHadamardGate(size_t target_qubit,
+                                Kokkos::View<Precision *> apply_flag) {
+    Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
+        {0, 0}, {batch_size_, tableau_width_});
+    Kokkos::parallel_for(policy,
+                         BatchHadamardGateWithApplyFlagFunctor<Precision>(
+                             *x_, *z_, *r_, target_qubit, apply_flag));
+  }
+
+  inline void ApplyControlNotGate(size_t control_qubit, size_t target_qubit) {
 
     Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
         {0, 0}, {batch_size_, tableau_width_});
     Kokkos::parallel_for(policy,
                          BatchControlNotGateFunctor<Precision>(
-                             *x_, *z_, *r_, target_qubit, control_qubit));
+                             *x_, *z_, *r_, control_qubit, target_qubit));
   }
 
-  inline void ApplyControlPhaseGate(size_t target_qubit, size_t control_qubit) {
+  inline void ApplyControlPhaseGate(size_t control_qubit, size_t target_qubit) {
 
     Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
         {0, 0}, {batch_size_, tableau_width_});
     Kokkos::parallel_for(policy,
                          BatchControlPhaseGateFunctor<Precision>(
-                             *x_, *z_, *r_, target_qubit, control_qubit));
+                             *x_, *z_, *r_, control_qubit, target_qubit));
   }
 
   inline void ApplyPhaseGate(size_t target_qubit) {
@@ -224,6 +240,14 @@ public:
         {0, 0}, {batch_size_, tableau_width_});
     Kokkos::parallel_for(
         policy, BatchPhaseGateFunctor<Precision>(*x_, *z_, *r_, target_qubit));
+  }
+
+  inline void ApplyPhaseGate(size_t target_qubit,
+                             Kokkos::View<Precision *> apply_flag) {
+    Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
+        {0, 0}, {batch_size_, tableau_width_});
+    Kokkos::parallel_for(policy, BatchPhaseGateWithApplyFlagFunctor<Precision>(
+                                     *x_, *z_, *r_, target_qubit, apply_flag));
   }
 
   inline void ApplyPauliXGate(size_t target_qubit) {
@@ -249,16 +273,39 @@ public:
   inline void HostToDevice(std::vector<Precision> &x, std::vector<Precision> &z,
                            std::vector<Precision> &r) {
 
-    Kokkos::deep_copy(*x_,
-                      UnmanagedHostMat3DView(x.data(), x_->extent(0),
-                                             x_->extent(1), x_->extent(2)));
+    Kokkos::View<Precision ***, Kokkos::HostSpace> x_host(
+        "x_host", batch_size_, tableau_width_, num_qubits_);
+    Kokkos::View<Precision ***, Kokkos::HostSpace> z_host(
+        "z_host", batch_size_, tableau_width_, num_qubits_);
+    Kokkos::View<Precision **, Kokkos::HostSpace> r_host("r_host", batch_size_,
+                                                         tableau_width_);
 
-    Kokkos::deep_copy(*z_,
-                      UnmanagedHostMat3DView(z.data(), z_->extent(0),
-                                             z_->extent(1), z_->extent(2)));
+    for (size_t batch_id = 0; batch_id < batch_size_; ++batch_id) {
+      for (size_t i = 0; i < tableau_width_; ++i) {
+        r_host(batch_id, i) = r[i];
+        for (size_t j = 0; j < num_qubits_; ++j) {
+          x_host(batch_id, i, j) =
+              x[batch_id * tableau_width_ * num_qubits_ + i * num_qubits_ + j];
+          z_host(batch_id, i, j) =
+              z[batch_id * tableau_width_ * num_qubits_ + i * num_qubits_ + j];
+        }
+      }
+    }
 
-    Kokkos::deep_copy(
-        *r_, UnmanagedHostMat2DView(r.data(), r_->extent(0), r_->extent(1)));
+    Kokkos::deep_copy(*x_, x_host);
+    Kokkos::deep_copy(*z_, z_host);
+    Kokkos::deep_copy(*r_, r_host);
+
+    // Kokkos::deep_copy(*x_,
+    //                   UnmanagedHostMat3DView(x.data(), x_->extent(0),
+    //                                          x_->extent(1), x_->extent(2)));
+
+    // Kokkos::deep_copy(*z_,
+    //                   UnmanagedHostMat3DView(z.data(), z_->extent(0),
+    //                                          z_->extent(1), z_->extent(2)));
+
+    // Kokkos::deep_copy(
+    //     *r_, UnmanagedHostMat2DView(r.data(), r_->extent(0), r_->extent(1)));
   }
 
   auto DeviceToHost() {
@@ -297,7 +344,7 @@ public:
     }
   }
 
-  size_t MeasureQubit(size_t target_qubit,
+  size_t MeasureQubit(size_t target_qubit, float bias = 0.5,
                       std::optional<size_t> measurement_id = std::nullopt) {
 
     Kokkos::RangePolicy<KokkosExecSpace> policy(0, batch_size_);
@@ -328,7 +375,7 @@ public:
             *(measurements_[measurement_id.value()].measurement_results_device),
             *(measurements_[measurement_id.value()]
                   .measurement_determined_device),
-            *rand_pool_, target_qubit));
+            *rand_pool_, target_qubit, bias));
 
     return measurement_id.value();
   }
@@ -344,6 +391,12 @@ public:
               .measurement_determined_host[batch_index]);
     }
     return result;
+  }
+
+  auto &GetMeasurement(size_t measurement_id) {
+    PLAQUETTE_ABORT_IF_NOT(measurement_id < measurements_.size(),
+                           "Measurement id or batch index is out of range.");
+    return measurements_[measurement_id];
   }
 
   ~BatchCliffordStateKokkos() {

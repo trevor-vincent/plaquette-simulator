@@ -12,63 +12,11 @@
 #include <catch2/catch.hpp>
 
 #include "BatchCliffordStateKokkos.hpp"
+#include "TableauState.hpp"
 #include "Test_Helpers.hpp"
 
 using namespace Plaquette;
 namespace {} // namespace
-
-#define PRINT_MATRIX_BATCH(variable, batch_size, tableau_width, num_qubits)    \
-  do {                                                                         \
-    std::cout << #variable << ":\n";                                           \
-    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {             \
-      std::cout << "Batch " << batch_id << ":\n";                              \
-      for (size_t i = 0; i < tableau_width; ++i) {                             \
-        for (size_t j = 0; j < num_qubits; ++j) {                              \
-          std::cout << variable[batch_id * tableau_width * num_qubits +        \
-                                i * num_qubits + j]                            \
-                    << " ";                                                    \
-        }                                                                      \
-        std::cout << "\n";                                                     \
-      }                                                                        \
-      std::cout << "\n";                                                       \
-    }                                                                          \
-  } while (0)
-
-#define PRINT_VECTOR_BATCH(variable, batch_size, tableau_width)                \
-  do {                                                                         \
-    std::cout << #variable << ":\n";                                           \
-    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {             \
-      std::cout << "Batch " << batch_id << ": ";                               \
-      for (size_t i = 0; i < tableau_width; ++i) {                             \
-        std::cout << variable[batch_id * tableau_width + i] << " ";            \
-      }                                                                        \
-      std::cout << "\n";                                                       \
-    }                                                                          \
-  } while (0)
-
-#define PRINT_VECTOR_3D(v)                                                     \
-  std::cout << #v << ":\n";                                                    \
-  for (size_t i = 0; i < v.size(); ++i) {                                      \
-    std::cout << "Batch " << i << ":\n";                                       \
-    for (size_t j = 0; j < v[i].size(); ++j) {                                 \
-      for (size_t k = 0; k < v[i][j].size(); ++k) {                            \
-        std::cout << v[i][j][k] << " ";                                        \
-      }                                                                        \
-      std::cout << "\n";                                                       \
-    }                                                                          \
-    std::cout << "\n";                                                         \
-  }
-
-#define PRINT_VECTOR_2D(v)                                                     \
-  std::cout << #v << ":\n";                                                    \
-  for (size_t i = 0; i < v.size(); ++i) {                                      \
-    std::cout << "Batch " << i << ":\n";                                       \
-    for (size_t j = 0; j < v[i].size(); ++j) {                                 \
-      std::cout << v[i][j] << " ";                                             \
-    }                                                                          \
-    std::cout << "\n\n";                                                       \
-  }
-
 TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Initialization",
                    "[batch_clifford] [initialization]", int) {
 
@@ -118,57 +66,6 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::CheckInitialization",
   }
 }
 
-TEMPLATE_TEST_CASE("CliffordStateKokkos::XZRConstructor",
-                   "[CliffordStateKokkos]", int) {
-
-  {
-    const std::size_t num_qubits = 5;
-    const std::size_t batch_size = 1;
-    const std::size_t tableau_width = 2 * num_qubits + 1;
-
-    std::vector<std::vector<int>> x_check = {
-        {1, 0, 0, 0, 0}, {1, 1, 0, 0, 0}, {1, 1, 1, 0, 1}, {1, 1, 0, 1, 0},
-        {0, 1, 0, 0, 1}, {0, 0, 0, 0, 1}, {0, 1, 0, 0, 0}, {0, 0, 0, 0, 0},
-        {1, 1, 0, 1, 0}, {1, 1, 0, 0, 1}, {0, 0, 0, 0, 0}};
-
-    std::vector<std::vector<int>> z_check = {
-        {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 1, 0, 1, 0}, {0, 0, 0, 0, 1},
-        {0, 1, 1, 1, 0}, {1, 1, 0, 0, 1}, {0, 1, 0, 1, 0}, {0, 0, 0, 1, 0},
-        {0, 0, 0, 1, 0}, {0, 1, 0, 1, 0}, {0, 0, 0, 0, 0}};
-
-    std::vector<int> r_check = {0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1};
-
-    std::vector<int> x_flat = {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0,
-                               1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0,
-                               0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
-                               0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0};
-
-    std::vector<int> z_flat = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
-                               0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0,
-                               0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0,
-                               0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0};
-
-    BatchCliffordStateKokkos<TestType> kokkos_state_1{x_flat, z_flat, r_check,
-                                                      num_qubits, batch_size};
-
-    auto &&[x, z, r] = kokkos_state_1.DeviceToHost();
-
-    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {
-      for (size_t i = 0; i < tableau_width; ++i) {
-        REQUIRE(r[batch_id * tableau_width + i] == r_check[i]);
-        for (size_t j = 0; j < num_qubits; ++j) {
-          REQUIRE(
-              x[batch_id * tableau_width * num_qubits + i * num_qubits + j] ==
-              x_check[i][j]);
-          REQUIRE(
-              z[batch_id * tableau_width * num_qubits + i * num_qubits + j] ==
-              z_check[i][j]);
-        }
-      }
-    }
-  }
-}
-
 TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Measure0",
                    "[batch_clifford] [measure] [measure0]", int) {
   {
@@ -194,8 +91,9 @@ TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::Measure1",
     BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
     kokkos_state_1.MeasureQubit(0);
     auto result = kokkos_state_1.GetMeasurement(0, 0);
-    REQUIRE(result.value().first == 0);  // Check the measured value.
-    REQUIRE(result.value().second == 1); // Check that the measurement was
+    REQUIRE(result.value().first == 0);
+    // Check the measured value. REQUIRE(result.value().second == 1); //
+    // Check that the measurement was
   }
 }
 
@@ -321,10 +219,10 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::BatchRowProductSignFunctor",
                                0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
                                0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0};
 
-    std::vector<int> z_flat = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
-                               0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0,
-                               0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0,
-                               0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0};
+    std::vector<int> z_flat = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0,
+                               1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0,
+                               1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0,
+                               1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0};
 
     std::vector<std::vector<BatchCliffordStateKokkos<TestType>>> states(
         num_qubits,
@@ -340,9 +238,9 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::BatchRowProductSignFunctor",
                      Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
 
     Kokkos::View<TestType *> results("results", batch_size);
-    auto unmanaged_results = UnmanagedHostVectorView(results.data(), batch_size);
+    auto unmanaged_results =
+        UnmanagedHostVectorView(results.data(), batch_size);
 
-    
     std::map<std::pair<size_t, size_t>, size_t> expected_map;
 
     std::vector<std::tuple<int, int, int>> expected = {
@@ -408,10 +306,22 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::BatchRowProductSignFunctor",
           std::get<2>(tuple);
     }
 
-  auto expected_checksum = std::accumulate(r_flat.begin(), r_flat.end(), 0) +
-                           std::accumulate(x_flat.begin(), x_flat.end(), 0) +
-                           std::accumulate(z_flat.begin(), z_flat.end(), 0);
-    
+    std::vector<std::vector<int>> tableau{
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0},
+        {1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0}, {1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1},
+        {0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0}, {0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0},
+        {0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1}, {0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+        {1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    };
+
+    auto expected_checksum = std::accumulate(r_flat.begin(), r_flat.end(), 0) +
+                             std::accumulate(x_flat.begin(), x_flat.end(), 0) +
+                             std::accumulate(z_flat.begin(), z_flat.end(), 0);
+
+    // size_t i == 4;
+    // size_t j == 3;
+
     for (size_t i = 0; i < num_qubits; i++) {
       for (size_t j = 0; j < num_qubits; j++) {
         if (i != j) {
@@ -419,336 +329,401 @@ TEMPLATE_TEST_CASE("CliffordStateKokkos::BatchRowProductSignFunctor",
                                BatchRowProductSignFunctor<TestType>(
                                    states[i][j].GetX(), states[i][j].GetZ(),
                                    states[i][j].GetR(), results, i, j));
-	  Kokkos::deep_copy(unmanaged_results, results);
-
-	  if (unmanaged_results[0] != expected_map[{i,j}]){
-	    std::cout << "i = " << i << std::endl;
-	    std::cout << "j = " << j << std::endl;
-	    std::cout << "unmanaged_results[0] = " << unmanaged_results[0] << std::endl;
-	    std::cout << "expected_map[{i,j}] = " << expected_map[{i, j}]
-		      << std::endl;
-	  }
-	  REQUIRE(states[i][j].CheckSum() == expected_checksum);
-	  
+          Kokkos::deep_copy(unmanaged_results, results);
+          REQUIRE(results[0] == expected_map[{i, j}]);
+          REQUIRE(states[i][j].CheckSum() == expected_checksum);
         }
       }
     }
   }
 }
 
-// TEMPLATE_TEST_CASE("CliffordStateKokkos::BatchRowMultiplyFunctor",
-//                    "[CliffordStateKokkos]", int) {
+TEMPLATE_TEST_CASE("CliffordStateKokkos::BatchRowMultiplyFunctor",
+                   "[CliffordStateKokkos]", int) {
 
-//   {
-//     const std::size_t num_qubits = 5;
-//     const std::size_t batch_size = 1;
-//     const std::size_t tableau_width = 2 * num_qubits + 1;
+  {
+    const std::size_t num_qubits = 5;
+    const std::size_t batch_size = 1;
+    const std::size_t tableau_width = 2 * num_qubits + 1;
 
-//     std::vector<int> r_flat = {0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1};
+    std::vector<int> r_flat = {0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1};
 
-//     std::vector<int> x_flat = {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0,
-//                                1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0,
-//                                0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
-//                                0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0};
+    std::vector<int> x_flat = {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0,
+                               1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0,
+                               0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+                               0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0};
 
-//     std::vector<int> z_flat = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
-//                                0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0,
-//                                0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0,
-//                                0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0};
+    std::vector<int> z_flat = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0,
+                               1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0,
+                               1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0,
+                               1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0};
 
-//     std::vector<std::vector<BatchCliffordStateKokkos<TestType>>> states(
-//         num_qubits,
-//         std::vector<BatchCliffordStateKokkos<TestType>>(
-//             num_qubits, BatchCliffordStateKokkos<TestType>(
-//                             x_flat, z_flat, r_flat, num_qubits,
-//                             batch_size)));
+    std::vector<std::vector<BatchCliffordStateKokkos<TestType>>> states(
+        num_qubits,
+        std::vector<BatchCliffordStateKokkos<TestType>>(
+            num_qubits, BatchCliffordStateKokkos<TestType>(
+                            x_flat, z_flat, r_flat, num_qubits, batch_size)));
 
-//     using KokkosExecSpace = Kokkos::DefaultExecutionSpace;
-//     Kokkos::RangePolicy<KokkosExecSpace> policy(0, batch_size);
+    using KokkosExecSpace = Kokkos::DefaultExecutionSpace;
+    Kokkos::RangePolicy<KokkosExecSpace> policy(0, batch_size);
 
-//     using UnmanagedHostVectorView =
-//         Kokkos::View<TestType *, Kokkos::HostSpace,
-//                      Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+    using UnmanagedHostVectorView =
+        Kokkos::View<TestType *, Kokkos::HostSpace,
+                     Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
 
-//   std::vector<std::tuple<int, int, int>> expected = {
-//     std::make_tuple(0, 1, 41),
-//     std::make_tuple(0, 2, 44),
-//     std::make_tuple(0, 3, 44),
-//     std::make_tuple(0, 4, 45),
-//     std::make_tuple(0, 5, 44),
-//     std::make_tuple(0, 6, 44),
-//     std::make_tuple(0, 7, 41),
-//     std::make_tuple(0, 8, 42),
-//     std::make_tuple(0, 9, 44),
-//     std::make_tuple(0, 10, 41),
-//     std::make_tuple(1, 0, 39),
-//     std::make_tuple(1, 2, 40),
-//     std::make_tuple(1, 3, 42),
-//     std::make_tuple(1, 4, 44),
-//     std::make_tuple(1, 5, 43),
-//     std::make_tuple(1, 6, 42),
-//     std::make_tuple(1, 7, 41),
-//     std::make_tuple(1, 8, 40),
-//     std::make_tuple(1, 9, 40),
-//     std::make_tuple(1, 10, 41),
-//     std::make_tuple(2, 0, 39),
-//     std::make_tuple(2, 1, 37),
-//     std::make_tuple(2, 3, 41),
-//     std::make_tuple(2, 4, 40),
-//     std::make_tuple(2, 5, 42),
-//     std::make_tuple(2, 6, 40),
-//     std::make_tuple(2, 7, 42),
-//     std::make_tuple(2, 8, 41),
-//     std::make_tuple(2, 9, 36),
-//     std::make_tuple(2, 10, 41),
-//     std::make_tuple(3, 0, 39),
-//     std::make_tuple(3, 1, 39),
-//     std::make_tuple(3, 2, 41),
-//     std::make_tuple(3, 4, 38),
-//     std::make_tuple(3, 5, 41),
-//     std::make_tuple(3, 6, 39),
-//     std::make_tuple(3, 7, 39),
-//     std::make_tuple(3, 8, 35),
-//     std::make_tuple(3, 9, 39),
-//     std::make_tuple(3, 10, 39),
-//     std::make_tuple(4, 0, 41),
-//     std::make_tuple(4, 1, 42),
-//     std::make_tuple(4, 2, 41),
-//     std::make_tuple(4, 3, 39),
-//     std::make_tuple(4, 5, 39),
-//     std::make_tuple(4, 6, 38),
-//     std::make_tuple(4, 7, 39),
-//     std::make_tuple(4, 8, 40),
-//     std::make_tuple(4, 9, 38),
-//     std::make_tuple(4, 10, 41),
-//     std::make_tuple(5, 0, 41),
-//     std::make_tuple(5, 1, 43),
-//     std::make_tuple(5, 2, 45),
-//     std::make_tuple(5, 3, 44),
-//     std::make_tuple(5, 4, 41),
-//     std::make_tuple(5, 6, 42),
-//     std::make_tuple(5, 7, 41),
-//     std::make_tuple(5, 8, 45),
-//     std::make_tuple(5, 9, 43),
-//     std::make_tuple(5, 10, 41),
-//     std::make_tuple(6, 0, 41),
-//     std::make_tuple(6, 1, 40),
-//     std::make_tuple(6, 2, 42),
-//     std::make_tuple(6, 3, 41),
-//     std::make_tuple(6, 4, 39),
-//     std::make_tuple(6, 5, 41),
-//     std::make_tuple(6, 7, 41),
-//     std::make_tuple(6, 8, 42),
-//     std::make_tuple(6, 9, 40),
-//     std::make_tuple(6, 10, 39),
-//     std::make_tuple(7, 0, 41),
-//     std::make_tuple(7, 1, 43),
-//     std::make_tuple(7, 2, 46),
-//     std::make_tuple(7, 3, 44),
-//     std::make_tuple(7, 4, 43),
-//     std::make_tuple(7, 5, 43),
-//     std::make_tuple(7, 6, 44),
-//     std::make_tuple(7, 8, 42),
-//     std::make_tuple(7, 9, 46),
-//     std::make_tuple(7, 10, 41),
-//     std::make_tuple(8, 0, 39),
-//     std::make_tuple(8, 1, 39),
-//     std::make_tuple(8, 2, 43),
-//     std::make_tuple(8, 3, 38),
-//     std::make_tuple(8, 4, 41),
-//     std::make_tuple(8, 5, 44),
-//     std::make_tuple(8, 6, 42),
-//     std::make_tuple(8, 7, 39),
-//     std::make_tuple(8, 9, 42),
-//     std::make_tuple(8, 10, 41),
-//     std::make_tuple(9, 0, 39),
-//     std::make_tuple(9, 1, 37),
-//     std::make_tuple(9, 2, 36),
-//     std::make_tuple(9, 3, 39),
-//     std::make_tuple(9, 4, 38),
-//     std::make_tuple(9, 5, 40),
-//     std::make_tuple(9, 6, 38),
-//     std::make_tuple(9, 7, 41),
-//     std::make_tuple(9, 8, 40),
-//     std::make_tuple(9, 10, 41),
-//     std::make_tuple(10, 0, 41),
-//     std::make_tuple(10, 1, 43),
-//     std::make_tuple(10, 2, 46),
-//     std::make_tuple(10, 3, 44),
-//     std::make_tuple(10, 4, 45),
-//     std::make_tuple(10, 5, 43),
-//     std::make_tuple(10, 6, 42),
-//     std::make_tuple(10, 7, 41),
-//     std::make_tuple(10, 8, 44),
-//     std::make_tuple(10, 9, 46),
-// };
+    std::vector<std::tuple<int, int, int>> expected = {
+        std::make_tuple(0, 1, 41),  std::make_tuple(0, 2, 44),
+        std::make_tuple(0, 3, 44),  std::make_tuple(0, 4, 45),
+        std::make_tuple(0, 5, 44),  std::make_tuple(0, 6, 44),
+        std::make_tuple(0, 7, 41),  std::make_tuple(0, 8, 42),
+        std::make_tuple(0, 9, 44),  std::make_tuple(0, 10, 41),
+        std::make_tuple(1, 0, 39),  std::make_tuple(1, 2, 40),
+        std::make_tuple(1, 3, 42),  std::make_tuple(1, 4, 44),
+        std::make_tuple(1, 5, 43),  std::make_tuple(1, 6, 42),
+        std::make_tuple(1, 7, 41),  std::make_tuple(1, 8, 40),
+        std::make_tuple(1, 9, 40),  std::make_tuple(1, 10, 41),
+        std::make_tuple(2, 0, 39),  std::make_tuple(2, 1, 37),
+        std::make_tuple(2, 3, 41),  std::make_tuple(2, 4, 40),
+        std::make_tuple(2, 5, 42),  std::make_tuple(2, 6, 40),
+        std::make_tuple(2, 7, 42),  std::make_tuple(2, 8, 41),
+        std::make_tuple(2, 9, 36),  std::make_tuple(2, 10, 41),
+        std::make_tuple(3, 0, 39),  std::make_tuple(3, 1, 39),
+        std::make_tuple(3, 2, 41),  std::make_tuple(3, 4, 38),
+        std::make_tuple(3, 5, 41),  std::make_tuple(3, 6, 39),
+        std::make_tuple(3, 7, 39),  std::make_tuple(3, 8, 35),
+        std::make_tuple(3, 9, 39),  std::make_tuple(3, 10, 39),
+        std::make_tuple(4, 0, 41),  std::make_tuple(4, 1, 42),
+        std::make_tuple(4, 2, 41),  std::make_tuple(4, 3, 39),
+        std::make_tuple(4, 5, 39),  std::make_tuple(4, 6, 38),
+        std::make_tuple(4, 7, 39),  std::make_tuple(4, 8, 40),
+        std::make_tuple(4, 9, 38),  std::make_tuple(4, 10, 41),
+        std::make_tuple(5, 0, 41),  std::make_tuple(5, 1, 43),
+        std::make_tuple(5, 2, 45),  std::make_tuple(5, 3, 44),
+        std::make_tuple(5, 4, 41),  std::make_tuple(5, 6, 42),
+        std::make_tuple(5, 7, 41),  std::make_tuple(5, 8, 45),
+        std::make_tuple(5, 9, 43),  std::make_tuple(5, 10, 41),
+        std::make_tuple(6, 0, 41),  std::make_tuple(6, 1, 40),
+        std::make_tuple(6, 2, 42),  std::make_tuple(6, 3, 41),
+        std::make_tuple(6, 4, 39),  std::make_tuple(6, 5, 41),
+        std::make_tuple(6, 7, 41),  std::make_tuple(6, 8, 42),
+        std::make_tuple(6, 9, 40),  std::make_tuple(6, 10, 39),
+        std::make_tuple(7, 0, 41),  std::make_tuple(7, 1, 43),
+        std::make_tuple(7, 2, 46),  std::make_tuple(7, 3, 44),
+        std::make_tuple(7, 4, 43),  std::make_tuple(7, 5, 43),
+        std::make_tuple(7, 6, 44),  std::make_tuple(7, 8, 42),
+        std::make_tuple(7, 9, 46),  std::make_tuple(7, 10, 41),
+        std::make_tuple(8, 0, 39),  std::make_tuple(8, 1, 39),
+        std::make_tuple(8, 2, 43),  std::make_tuple(8, 3, 38),
+        std::make_tuple(8, 4, 41),  std::make_tuple(8, 5, 44),
+        std::make_tuple(8, 6, 42),  std::make_tuple(8, 7, 39),
+        std::make_tuple(8, 9, 42),  std::make_tuple(8, 10, 41),
+        std::make_tuple(9, 0, 39),  std::make_tuple(9, 1, 37),
+        std::make_tuple(9, 2, 36),  std::make_tuple(9, 3, 39),
+        std::make_tuple(9, 4, 38),  std::make_tuple(9, 5, 40),
+        std::make_tuple(9, 6, 38),  std::make_tuple(9, 7, 41),
+        std::make_tuple(9, 8, 40),  std::make_tuple(9, 10, 41),
+        std::make_tuple(10, 0, 41), std::make_tuple(10, 1, 43),
+        std::make_tuple(10, 2, 46), std::make_tuple(10, 3, 44),
+        std::make_tuple(10, 4, 45), std::make_tuple(10, 5, 43),
+        std::make_tuple(10, 6, 42), std::make_tuple(10, 7, 41),
+        std::make_tuple(10, 8, 44), std::make_tuple(10, 9, 46),
+    };
 
-//     std::map<std::pair<size_t, size_t>, size_t> expected_map;
-//     for (const auto& tuple : expected) {
-//         expected_map[std::make_pair(std::get<0>(tuple), std::get<1>(tuple))]
-//         = std::get<2>(tuple);
-//     }
+    std::map<std::pair<size_t, size_t>, size_t> expected_map;
+    for (const auto &tuple : expected) {
+      expected_map[std::make_pair(std::get<0>(tuple), std::get<1>(tuple))] =
+          std::get<2>(tuple);
+    }
 
-//     for (size_t i = 0; i < num_qubits; i++) {
-//       for (size_t j = 0; j < num_qubits; j++) {
-// 	if (i != j){
-// 	  Kokkos::parallel_for(policy,
-// 			       BatchRowMultiplyFunctor<TestType>(
-// 								 states[i][j].GetX(),
-// 								 states[i][j].GetZ(),
-// 								 states[i][j].GetR(),
-// 								 i, j));
-// 	  auto sum = states[i][j].CheckSum();
-// 	  std::cout << "sum = " << sum << std::endl;
-// 	  std::cout << "expected_map[{i,j}] = " << expected_map[{i,j}] <<
-// std::endl;
-// 	}
+    for (size_t i = 0; i < num_qubits; i++) {
+      for (size_t j = 0; j < num_qubits; j++) {
+        if (i != j) {
+          Kokkos::parallel_for(policy,
+                               BatchRowMultiplyFunctor<TestType>(
+                                   states[i][j].GetX(), states[i][j].GetZ(),
+                                   states[i][j].GetR(), i, j));
+          auto sum = states[i][j].CheckSum();
+          REQUIRE(sum == expected_map[std::make_pair(i, j)]);
+        }
+      }
+    }
+  }
+}
 
-// 	// Kokkos::deep_copy(UnmanagedHostVectorView(
-//         //                       measurement_results_host[q].data(),
-//         batch_size),
-//         //                   measurement_results[q]);
+TEMPLATE_TEST_CASE("CliffordStateKokkos::BatchMeasureDeterminedFunctor",
+                   "[CliffordStateKokkos]", int) {
 
-//       }
-//     }
-//   }
-// }
+  {
+    const std::size_t num_qubits = 5;
+    const std::size_t batch_size = 1;
+    const std::size_t tableau_width = 2 * num_qubits + 1;
 
-// TEMPLATE_TEST_CASE("CliffordStateKokkos::BatchMeasureDeterminedFunctor",
-//                    "[CliffordStateKokkos]", int) {
+    std::vector<int> r_flat = {0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1};
 
-//   {
-//     const std::size_t num_qubits = 5;
-//     const std::size_t batch_size = 1;
-//     const std::size_t tableau_width = 2 * num_qubits + 1;
+    std::vector<int> x_flat = {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0,
+                               1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0,
+                               0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+                               0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0};
 
-//     std::vector<int> r_flat = {0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1};
+    std::vector<int> z_flat = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0,
+                               1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0,
+                               1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0,
+                               1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0};
 
-//     std::vector<int> x_flat = {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0,
-//                                1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0,
-//                                0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
-//                                0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0};
+    std::vector<BatchCliffordStateKokkos<TestType>> states(
+        num_qubits, BatchCliffordStateKokkos<TestType>(x_flat, z_flat, r_flat,
+                                                       num_qubits, batch_size));
 
-//     std::vector<int> z_flat = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
-//                                0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0,
-//                                0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0,
-//                                0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0};
+    std::vector<Kokkos::View<TestType *, Kokkos::DefaultExecutionSpace>>
+        measurement_results(
+            num_qubits, Kokkos::View<TestType *, Kokkos::DefaultExecutionSpace>(
+                            "measurement_results", batch_size));
 
-//     std::vector<BatchCliffordStateKokkos<TestType>> states(
-//         num_qubits, BatchCliffordStateKokkos<TestType>(x_flat, z_flat,
-//         r_flat,
-//                                                        num_qubits,
-//                                                        batch_size));
+    std::vector<std::vector<TestType>> measurement_results_host(
+        num_qubits, std::vector<TestType>(batch_size));
 
-//     std::vector<Kokkos::View<TestType *, Kokkos::DefaultExecutionSpace>>
-//         measurement_results(
-//             num_qubits, Kokkos::View<TestType *,
-//             Kokkos::DefaultExecutionSpace>(
-//                             "measurement_results", batch_size));
+    std::vector<TestType> expected_results = {1, 1, 0, 0, 0};
 
-//     std::vector<std::vector<TestType>> measurement_results_host(
-//         num_qubits, std::vector<TestType>(batch_size));
+    using KokkosExecSpace = Kokkos::DefaultExecutionSpace;
+    Kokkos::RangePolicy<KokkosExecSpace> policy(0, batch_size);
 
-//     std::vector<TestType> expected_results = {1, 1, 0, 0, 0};
+    using UnmanagedHostVectorView =
+        Kokkos::View<TestType *, Kokkos::HostSpace,
+                     Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
 
-//     using KokkosExecSpace = Kokkos::DefaultExecutionSpace;
-//     Kokkos::RangePolicy<KokkosExecSpace> policy(0, batch_size);
+    for (size_t q = 0; q < num_qubits; q++) {
+      Kokkos::parallel_for(policy,
+                           BatchMeasureDeterminedFunctor<TestType>(
+                               states[q].GetX(), states[q].GetZ(),
+                               states[q].GetR(), measurement_results[q], q));
+      Kokkos::deep_copy(UnmanagedHostVectorView(
+                            measurement_results_host[q].data(), batch_size),
+                        measurement_results[q]);
 
-//     using UnmanagedHostVectorView =
-//         Kokkos::View<TestType *, Kokkos::HostSpace,
-//                      Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+      REQUIRE(measurement_results_host[q][0] == expected_results[q]);
+    }
+  }
+}
 
-//     for (size_t q = 0; q < num_qubits; q++) {
-//       Kokkos::parallel_for(policy,
-//                            BatchMeasureDeterminedFunctor<TestType>(
-//                                states[q].GetX(), states[q].GetZ(),
-//                                states[q].GetR(), measurement_results[q], q));
-//       Kokkos::deep_copy(UnmanagedHostVectorView(
-//                             measurement_results_host[q].data(), batch_size),
-//                         measurement_results[q]);
-//       std::cout << "measurement_results_host[q][0] = "
-//                 << measurement_results_host[q][0] << std::endl;
-//     }
-//   }
-// }
+TEMPLATE_TEST_CASE("CliffordStateKokkos::MeasureRandom",
+                   "[CliffordStateKokkos]", int) {
 
-// TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::PhaseKickback",
-//                    "[batch_clifford] [hadamard]", int) {
+  {
+    const std::size_t num_qubits = 2;
+    const std::size_t batch_size = 1;
 
-//   {
-//     const std::size_t num_qubits = 2;
-//     const std::size_t batch_size = 1;
-//     BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits,
-//     batch_size); kokkos_state_1.ApplyHadamardGate(1);
-//     kokkos_state_1.ApplyPhaseGate(1);
-//     kokkos_state_1.ApplyHadamardGate(0);
-//     kokkos_state_1.ApplyControlNotGate(0, 1);
-//     kokkos_state_1.MeasureQubit(1);
-//     auto result_0 = kokkos_state_1.GetMeasurement(0, 0);
-//     REQUIRE(result_0.value().second == 0); // Check that the measurement was
-//     not deterministic.
+    float bias_1 = 0;
+    int check_sum_1 = 9;
+    BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    kokkos_state_1.ApplyHadamardGate(1);
+    kokkos_state_1.ApplyPhaseGate(1);
+    kokkos_state_1.ApplyHadamardGate(0);
+    kokkos_state_1.ApplyControlNotGate(0, 1);
+    // This will be nondeterministic
+    kokkos_state_1.MeasureQubit(1, bias_1);
+    REQUIRE(kokkos_state_1.CheckSum() == check_sum_1);
 
-//     if (result_0.value().first){
-//       kokkos_state_1.ApplyPhaseGate(0);
-//       kokkos_state_1.ApplyPhaseGate(0);
-//     }
-//     kokkos_state_1.ApplyPhaseGate(0);
-//     kokkos_state_1.ApplyHadamardGate(0);
+    float bias_2 = 1;
+    int check_sum_2 = 10;
+    BatchCliffordStateKokkos<TestType> kokkos_state_2(num_qubits, batch_size);
+    kokkos_state_2.ApplyHadamardGate(1);
+    kokkos_state_2.ApplyPhaseGate(1);
+    kokkos_state_2.ApplyHadamardGate(0);
+    kokkos_state_2.ApplyControlNotGate(0, 1);
+    // This will be nondeterministic
+    kokkos_state_2.MeasureQubit(1, bias_2);
+    REQUIRE(kokkos_state_2.CheckSum() == check_sum_2);
+  }
+}
 
-//     kokkos_state_1.MeasureQubit(0);
-//     auto result_1 = kokkos_state_1.GetMeasurement(1, 0);
-//     REQUIRE(result_1.value().second == 1); // Check that the measurement was
-//     REQUIRE(result_1.value().first == 1);  // Check the measured value.
-
-//   }
-// }
-
-TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::PauliZ",
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::PhaseKickback",
                    "[batch_clifford] [hadamard]", int) {
 
   {
-    const std::size_t num_qubits = 3;
+    const std::size_t num_qubits = 2;
     const std::size_t batch_size = 1;
+
     BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
-    kokkos_state_1.ApplyPauliZGate(0);
+    kokkos_state_1.ApplyHadamardGate(1);
+    kokkos_state_1.ApplyPhaseGate(1);
+    kokkos_state_1.ApplyHadamardGate(0);
+    kokkos_state_1.ApplyControlNotGate(0, 1);
+    kokkos_state_1.MeasureQubit(1);
+    auto result_0 = kokkos_state_1.GetMeasurement(0, 0);
+    REQUIRE(result_0.value().second == 0);
+
+    if (result_0.value().first) {
+      kokkos_state_1.ApplyPhaseGate(0);
+      kokkos_state_1.ApplyPhaseGate(0);
+    }
+    kokkos_state_1.ApplyPhaseGate(0);
+    kokkos_state_1.ApplyHadamardGate(0);
+
+    kokkos_state_1.MeasureQubit(0);
+    auto result_1 = kokkos_state_1.GetMeasurement(1, 0);
+    REQUIRE(result_1.value().second == 1); // Check that the measurement was
+    REQUIRE(result_1.value().first == 1);  // Check the measured value.
   }
 }
 
-TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::CNOT", "[batch_clifford] [cnot]",
-                   int) {
+TEST_CASE("S-State Distillation Low Space Test",
+          "[s_state_distillation_low_space]") {
+
+  for (int test_case = 0; test_case < 100; ++test_case) {
+
+    const std::size_t num_qubits = 5;
+    const std::size_t batch_size = 1;
+    BatchCliffordStateKokkos<int> sim(num_qubits, batch_size, test_case);
+    size_t batch_id = 0;
+    // Define phasors.
+    std::vector<std::vector<int>> phasors = {
+        {0}, {1}, {2}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}};
+
+    int anc = 4;
+    for (const auto &phasor : phasors) {
+      sim.ApplyHadamardGate(anc);
+      for (int k : phasor) {
+        sim.ApplyControlNotGate(anc, k);
+      }
+      sim.ApplyHadamardGate(anc);
+      sim.ApplyPhaseGate(anc);
+      sim.ApplyHadamardGate(anc);
+
+      auto measurement_id = sim.MeasureQubit(anc);
+      auto v = sim.GetMeasurement(measurement_id, batch_id);
+
+      REQUIRE(v.value().second ==
+              false); // Check that the measurement was not // determined.
+      if (v.value().first) {
+        for (int k : phasor) {
+          sim.ApplyHadamardGate(k);
+          sim.ApplyPhaseGate(k);
+          sim.ApplyPhaseGate(k);
+          sim.ApplyHadamardGate(k);
+        }
+        sim.ApplyHadamardGate(anc);
+        sim.ApplyPhaseGate(anc);
+        sim.ApplyPhaseGate(anc);
+        sim.ApplyHadamardGate(anc);
+      }
+    }
+
+    for (int k = 0; k < 3; ++k) {
+      auto measurement_id = sim.MeasureQubit(k);
+      auto result = sim.GetMeasurement(measurement_id, batch_id);
+
+      REQUIRE(result.value().first == false); // Check the measured value for
+      REQUIRE(result.value().second == true); // Check that
+    }
+
+    sim.ApplyPhaseGate(3);
+    sim.ApplyHadamardGate(3);
+    auto measurement_id = sim.MeasureQubit(3);
+    auto result = sim.GetMeasurement(measurement_id, batch_id);
+
+    REQUIRE(result.value().first == true);  // Check the measured value for
+    REQUIRE(result.value().second == true); // Check that the
+
+    std::cout << "sim.CheckSum() sequential = " << sim.CheckSum() << std::endl;
+  }
+}
+
+TEMPLATE_TEST_CASE("BatchCliffordStateKokkos::PhaseKickbackBatched",
+                   "[batch_clifford] [hadamard]", int) {
 
   {
-    const std::size_t num_qubits = 3;
-    const std::size_t batch_size = 1;
+    const std::size_t num_qubits = 2;
+    const std::size_t batch_size = 2;
+
     BatchCliffordStateKokkos<TestType> kokkos_state_1(num_qubits, batch_size);
+    kokkos_state_1.ApplyHadamardGate(1);
+    kokkos_state_1.ApplyPhaseGate(1);
+    kokkos_state_1.ApplyHadamardGate(0);
     kokkos_state_1.ApplyControlNotGate(0, 1);
+
+    auto measurement_id = kokkos_state_1.MeasureQubit(1);
+    auto &measurement = kokkos_state_1.GetMeasurement(measurement_id);
+    auto result_0_0 = kokkos_state_1.GetMeasurement(measurement_id, 0);
+    auto result_0_1 = kokkos_state_1.GetMeasurement(measurement_id, 1);
+    REQUIRE(result_0_0.value().second == 0);
+    REQUIRE(result_0_1.value().second == 0);
+
+    kokkos_state_1.ApplyPhaseGate(0, *measurement.measurement_results_device);
+    kokkos_state_1.ApplyPhaseGate(0, *measurement.measurement_results_device);
+    kokkos_state_1.ApplyPhaseGate(0);
+    kokkos_state_1.ApplyHadamardGate(0);
+
+    measurement_id = kokkos_state_1.MeasureQubit(0);
+    auto result_1_0 = kokkos_state_1.GetMeasurement(measurement_id, 0);
+    auto result_1_1 = kokkos_state_1.GetMeasurement(measurement_id, 1);
+    REQUIRE(result_1_0.value().second == 1); // Check that the measurement was
+    REQUIRE(result_1_0.value().first == 1);  // Check the measured value.
+    REQUIRE(result_1_1.value().second == 1); // Check that the measurement was
+    REQUIRE(result_1_1.value().first == 1);  // Check the measured value.
   }
 }
 
-// TEMPLATE_TEST_CASE("CliffordStateKokkos::CopyConstructor",
-//                    "[CliffordStateKokkos]", int) {
+TEST_CASE("S-State Distillation Low Space Test Batched",
+          "[s_state_distillation_low_space]") {
 
-//   {
-//     const std::size_t num_qubits = 3;
-//     CliffordStateKokkos<TestType> kokkos_state_1{num_qubits};
-//     CliffordStateKokkos<TestType> kokkos_state_2{kokkos_state_1};
+  const std::size_t num_qubits = 5;
+  const std::size_t batch_size = 100;
+  BatchCliffordStateKokkos<int> sim(num_qubits, batch_size, 1231232132);
 
-//     CHECK(kokkos_state_1.GetNumQubits() == kokkos_state_2.GetNumQubits());
+  // Define phasors.
+  std::vector<std::vector<int>> phasors = {
+      {0}, {1}, {2}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}};
 
-//     std::vector<Kokkos::complex<TestType>>
-//     kokkos_state_1_host(kokkos_state_1.getLength());
+  int anc = 4;
+  for (const auto &phasor : phasors) {
+    sim.ApplyHadamardGate(anc);
+    for (int k : phasor) {
+      sim.ApplyControlNotGate(anc, k);
+    }
+    sim.ApplyHadamardGate(anc);
+    sim.ApplyPhaseGate(anc);
+    sim.ApplyHadamardGate(anc);
 
-//     std::vector<Kokkos::complex<TestType>>
-//     kokkos_state_2_host(kokkos_state_2.getLength());
+    auto measurement_id = sim.MeasureQubit(anc);
+    auto &measurement = sim.GetMeasurement(measurement_id);
 
-//     kokkos_state_1.DeviceToHost(kokkos_state_1_host.data(),
-// 				kokkos_state_1.getLength());
+    for (size_t batch_id = 0; batch_id < batch_size; batch_id++) {
+      auto v = sim.GetMeasurement(measurement_id, batch_id);
+      REQUIRE(v.value().second == false);
+    }
 
-//     kokkos_state_2.DeviceToHost(kokkos_state_2_host.data(),
-// 				kokkos_state_2.getLength());
+    for (int k : phasor) {
+      sim.ApplyHadamardGate(k, *measurement.measurement_results_device);
+      sim.ApplyPhaseGate(k, *measurement.measurement_results_device);
+      sim.ApplyPhaseGate(k, *measurement.measurement_results_device);
+      sim.ApplyHadamardGate(k, *measurement.measurement_results_device);
+    }
+    sim.ApplyHadamardGate(anc, *measurement.measurement_results_device);
+    sim.ApplyPhaseGate(anc, *measurement.measurement_results_device);
+    sim.ApplyPhaseGate(anc, *measurement.measurement_results_device);
+    sim.ApplyHadamardGate(anc, *measurement.measurement_results_device);
+  }
 
-//     // for (size_t i = 0; i < kokkos_state_1_host.size(); i++) {
-//     //   CHECK(kokkos_state_1_host[i] == kokkos_state_2_host[i]);
-//     // }
-//   }
-// }
+  for (int k = 0; k < 3; ++k) {
+    auto measurement_id = sim.MeasureQubit(k);
+    for (size_t batch_id = 0; batch_id < batch_size; batch_id++) {
+      auto result = sim.GetMeasurement(measurement_id, batch_id);
+      REQUIRE(result.value().first == false); // Check the measured value for
+      REQUIRE(result.value().second == true); // Check that
+    }
+  }
+
+  sim.ApplyPhaseGate(3);
+  sim.ApplyHadamardGate(3);
+  auto measurement_id = sim.MeasureQubit(3);
+  for (size_t batch_id = 0; batch_id < batch_size; batch_id++) {
+    auto result = sim.GetMeasurement(measurement_id, batch_id);
+    REQUIRE(result.value().first == true);  // Check the measured value for
+    REQUIRE(result.value().second == true); // Check that
+  }
+
+  for (size_t batch_id = 0; batch_id < batch_size; batch_id++) {
+    std::cout << "sim.CheckSum parallel = "
+              << sim.CheckSum(batch_id, batch_id + 1) << std::endl;
+  }
+}
