@@ -208,6 +208,17 @@ public:
   }
 
   inline void ApplyHadamardGate(size_t target_qubit,
+                                float prob) {
+
+    Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
+        {0, 0}, {batch_size_, tableau_width_});
+    Kokkos::parallel_for(policy,
+                         BatchHadamardGateWithProbFunctor<Precision>(
+								     *x_, *z_, *r_, target_qubit, rand_pool_, prob));
+  }
+
+  
+  inline void ApplyHadamardGate(size_t target_qubit,
                                 Kokkos::View<Precision *> apply_flag) {
     Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
         {0, 0}, {batch_size_, tableau_width_});
@@ -225,6 +236,17 @@ public:
                              *x_, *z_, *r_, control_qubit, target_qubit));
   }
 
+  inline void ApplyControlNotGate(size_t control_qubit, size_t target_qubit, float prob) {
+
+    Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
+        {0, 0}, {batch_size_, tableau_width_});
+    Kokkos::parallel_for(policy,
+                         BatchControlNotGateWithProbFunctor<Precision>(
+								       *x_, *z_, *r_, control_qubit, target_qubit, rand_pool_, prob));
+  }
+
+  
+
   inline void ApplyControlPhaseGate(size_t control_qubit, size_t target_qubit) {
 
     Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
@@ -234,6 +256,18 @@ public:
                              *x_, *z_, *r_, control_qubit, target_qubit));
   }
 
+
+  inline void ApplyControlPhaseGate(size_t control_qubit, size_t target_qubit, float prob) {
+
+    Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
+        {0, 0}, {batch_size_, tableau_width_});
+    Kokkos::parallel_for(policy,
+                         BatchControlPhaseGateWithProbFunctor<Precision>(
+									 *x_, *z_, *r_, control_qubit, target_qubit, rand_pool_, prob));
+  }
+
+  
+
   inline void ApplyPhaseGate(size_t target_qubit) {
 
     Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
@@ -242,6 +276,15 @@ public:
         policy, BatchPhaseGateFunctor<Precision>(*x_, *z_, *r_, target_qubit));
   }
 
+
+  inline void ApplyPhaseGate(size_t target_qubit, float prob) {
+
+    Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
+        {0, 0}, {batch_size_, tableau_width_});
+    Kokkos::parallel_for(
+			 policy, BatchPhaseGateWithProbFunctor<Precision>(*x_, *z_, *r_, target_qubit, rand_pool_, prob));
+  }
+  
   inline void ApplyPhaseGate(size_t target_qubit,
                              Kokkos::View<Precision *> apply_flag) {
     Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
@@ -258,13 +301,30 @@ public:
         policy, BatchPauliXGateFunctor<Precision>(*x_, *z_, *r_, target_qubit));
   }
 
-  inline void ApplyPauliZGate(size_t target_qubit) {
+  inline void ApplyPauliXGate(size_t target_qubit, float prob) {
 
+    Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
+        {0, 0}, {batch_size_, tableau_width_});
+    Kokkos::parallel_for(
+        policy, BatchPauliXGateWithProbFunctor<Precision>(*x_, *z_, *r_, target_qubit));
+  }
+  
+  inline void ApplyPauliZGate(size_t target_qubit) {
+    
     Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
         {0, 0}, {batch_size_, tableau_width_});
     Kokkos::parallel_for(
         policy, BatchPauliZGateFunctor<Precision>(*x_, *z_, *r_, target_qubit));
   }
+
+  inline void ApplyPauliZGate(size_t target_qubit, float prob) {
+    
+    Kokkos::MDRangePolicy<Kokkos::Rank<2>> policy(
+        {0, 0}, {batch_size_, tableau_width_});
+    Kokkos::parallel_for(
+			 policy, BatchPauliZGateFunctor<Precision>(*x_, *z_, *r_, target_qubit, rand_pool_, prob));
+  }
+  
 
   /**
    * @brief Copy data from the host space to the device space.
@@ -280,32 +340,32 @@ public:
     Kokkos::View<Precision **, Kokkos::HostSpace> r_host("r_host", batch_size_,
                                                          tableau_width_);
 
-    for (size_t batch_id = 0; batch_id < batch_size_; ++batch_id) {
-      for (size_t i = 0; i < tableau_width_; ++i) {
-        r_host(batch_id, i) = r[i];
-        for (size_t j = 0; j < num_qubits_; ++j) {
-          x_host(batch_id, i, j) =
-              x[batch_id * tableau_width_ * num_qubits_ + i * num_qubits_ + j];
-          z_host(batch_id, i, j) =
-              z[batch_id * tableau_width_ * num_qubits_ + i * num_qubits_ + j];
-        }
-      }
-    }
+    // for (size_t batch_id = 0; batch_id < batch_size_; ++batch_id) {
+    //   for (size_t i = 0; i < tableau_width_; ++i) {
+    //     r_host(batch_id, i) = r[i];
+    //     for (size_t j = 0; j < num_qubits_; ++j) {
+    //       x_host(batch_id, i, j) =
+    //           x[batch_id * tableau_width_ * num_qubits_ + i * num_qubits_ + j];
+    //       z_host(batch_id, i, j) =
+    //           z[batch_id * tableau_width_ * num_qubits_ + i * num_qubits_ + j];
+    //     }
+    //   }
+    // }
 
-    Kokkos::deep_copy(*x_, x_host);
-    Kokkos::deep_copy(*z_, z_host);
-    Kokkos::deep_copy(*r_, r_host);
+    // Kokkos::deep_copy(*x_, x_host);
+    // Kokkos::deep_copy(*z_, z_host);
+    // Kokkos::deep_copy(*r_, r_host);
 
-    // Kokkos::deep_copy(*x_,
-    //                   UnmanagedHostMat3DView(x.data(), x_->extent(0),
-    //                                          x_->extent(1), x_->extent(2)));
+    Kokkos::deep_copy(*x_,
+                      UnmanagedHostMat3DView(x.data(), x_->extent(0),
+                                             x_->extent(1), x_->extent(2)));
 
-    // Kokkos::deep_copy(*z_,
-    //                   UnmanagedHostMat3DView(z.data(), z_->extent(0),
-    //                                          z_->extent(1), z_->extent(2)));
+    Kokkos::deep_copy(*z_,
+                      UnmanagedHostMat3DView(z.data(), z_->extent(0),
+                                             z_->extent(1), z_->extent(2)));
 
-    // Kokkos::deep_copy(
-    //     *r_, UnmanagedHostMat2DView(r.data(), r_->extent(0), r_->extent(1)));
+    Kokkos::deep_copy(
+        *r_, UnmanagedHostMat2DView(r.data(), r_->extent(0), r_->extent(1)));
   }
 
   auto DeviceToHost() {

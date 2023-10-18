@@ -623,8 +623,6 @@ TEST_CASE("S-State Distillation Low Space Test",
 
     REQUIRE(result.value().first == true);  // Check the measured value for
     REQUIRE(result.value().second == true); // Check that the
-
-    std::cout << "sim.CheckSum() sequential = " << sim.CheckSum() << std::endl;
   }
 }
 
@@ -722,8 +720,4 @@ TEST_CASE("S-State Distillation Low Space Test Batched",
     REQUIRE(result.value().second == true); // Check that
   }
 
-  for (size_t batch_id = 0; batch_id < batch_size; batch_id++) {
-    std::cout << "sim.CheckSum parallel = "
-              << sim.CheckSum(batch_id, batch_id + 1) << std::endl;
-  }
 }
