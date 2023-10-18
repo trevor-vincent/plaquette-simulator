@@ -16,7 +16,7 @@ The C++ tests/examples and python bindings can be built independently by
 
 .. code-block:: console
 
-   cmake -Bbuild -G Ninja -DPLAQUETTE_HPC_SIMULATOR_BUILD_TESTS=On -DPLAQUETTE_HPC_SIMULATOR_BUILD_BINDINGS=On
+   cmake -Bbuild -G Ninja
    cmake --build ./build
 
    
@@ -41,3 +41,57 @@ You can run the python frontend tests with
 
    make test-python
 
+
+
+Usage
+==========
+
+Python Frontend
+---------------
+
+.. code-block:: python
+
+    import plaquette_simulator as ps
+
+    init_to_zero = true
+    seed = 123423
+    batch_size = 10
+    num_qubits = 5
+    
+    clifford_state = ps.CliffordState(num_qubits, batch_size, seed, init_to_zero)
+    clifford_state.apply_hadamard_gate(0)
+    clifford_state.apply_cnot_gate(0,1)
+    clifford_state.measure_qubit(0)
+
+C++ Backend
+-----------
+
+.. code-block:: cpp
+
+    #include "CliffordState.hpp"
+
+    int main(int argc, char *argv[]) {
+
+        using namespace Plaquette;
+        //a vector storing a flag that is 1 if the vertex is on the boundary
+ 
+	int num_qubits = 5;
+	int batch_size = 10;
+	CliffordState clifford_state(num_qubits, batch_size);
+
+	clifford_state.ApplyHadamardGate(0);
+	clifford_state.ApplyControlNotGate(0,1);
+	clifford_state.MeasureQubit(0);
+    }
+
+    
+Documentation
+=============
+
+To generate the documentation you will need to install graphviz and doxygen. Then run
+
+.. code-block:: console
+
+   pip install -r doc/requirements.txt
+   make docs
+   firefox ./doc/_build/html/index.html

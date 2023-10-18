@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(plaquette_hpc_simulator_tests)
+project(plaquette_simulator_tests)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -9,7 +9,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-option(PLAQUETTE_HPC_SIMULATOR_ENABLE_NATIVE "Enable native CPU build tuning" OFF)
+option(PLAQUETTE_SIMULATOR_ENABLE_NATIVE "Enable native CPU build tuning" OFF)
 
 Include(FetchContent)
 
@@ -30,15 +30,15 @@ include(Catch)
 
 add_executable(test_runner runner.cpp )
 target_link_libraries(test_runner PUBLIC Catch2::Catch2 kokkos)
-target_include_directories(test_runner PUBLIC ${CMAKE_SOURCE_DIR}/plaquette_hpc_simulator/src)
-target_include_directories(test_runner PUBLIC ${PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR} )
+target_include_directories(test_runner PUBLIC ${CMAKE_SOURCE_DIR}/plaquette_simulator/src)
+target_include_directories(test_runner PUBLIC ${PLAQUETTE_SIMULATOR_KOKKOS_INC_DIR} )
 
 message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 target_compile_options(test_runner PRIVATE "$<$<CONFIG:DEBUG>:-Wall>")
 catch_discover_tests(test_runner)
 
 
-# add_library(plaquette_hpc_simulator INTERFACE)
-# target_link_libraries(plaquette_hpc_simulator INTERFACE kokkos)
-# target_include_directories(plaquette_hpc_simulator INTERFACE "plaquette_hpc_simulator/src")
-# target_include_directories(plaquette_hpc_simulator INTERFACE ${PLAQUETTE_HPC_SIMULATOR_KOKKOS_INC_DIR} )
+# add_library(plaquette_simulator INTERFACE)
+# target_link_libraries(plaquette_simulator INTERFACE kokkos)
+# target_include_directories(plaquette_simulator INTERFACE "plaquette_simulator/src")
+# target_include_directories(plaquette_simulator INTERFACE ${PLAQUETTE_SIMULATOR_KOKKOS_INC_DIR} )

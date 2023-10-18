@@ -1,67 +1,64 @@
-#include <vector>
 #include <iostream>
-
+#include <vector>
 
 #define PRINT_MATRIX_BATCH(variable, batch_size, tableau_width, num_qubits)    \
-  do {                                                                         \
-    std::cout << #variable << ":\n";                                           \
-    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {             \
-      std::cout << "Batch " << batch_id << ":\n";                              \
-      for (size_t i = 0; i < tableau_width; ++i) {                             \
-        for (size_t j = 0; j < num_qubits; ++j) {                              \
-          std::cout << variable[batch_id * tableau_width * num_qubits +        \
-                                i * num_qubits + j]                            \
-                    << " ";                                                    \
+    do {                                                                       \
+        std::cout << #variable << ":\n";                                       \
+        for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {         \
+            std::cout << "Batch " << batch_id << ":\n";                        \
+            for (size_t i = 0; i < tableau_width; ++i) {                       \
+                for (size_t j = 0; j < num_qubits; ++j) {                      \
+                    std::cout                                                  \
+                        << variable[batch_id * tableau_width * num_qubits +    \
+                                    i * num_qubits + j]                        \
+                        << " ";                                                \
+                }                                                              \
+                std::cout << "\n";                                             \
+            }                                                                  \
+            std::cout << "\n";                                                 \
         }                                                                      \
-        std::cout << "\n";                                                     \
-      }                                                                        \
-      std::cout << "\n";                                                       \
-    }                                                                          \
-  } while (0)
+    } while (0)
 
 #define PRINT_VECTOR_BATCH(variable, batch_size, tableau_width)                \
-  do {                                                                         \
-    std::cout << #variable << ":\n";                                           \
-    for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {             \
-      std::cout << "Batch " << batch_id << ": ";                               \
-      for (size_t i = 0; i < tableau_width; ++i) {                             \
-        std::cout << variable[batch_id * tableau_width + i] << " ";            \
-      }                                                                        \
-      std::cout << "\n";                                                       \
-    }                                                                          \
-  } while (0)
+    do {                                                                       \
+        std::cout << #variable << ":\n";                                       \
+        for (size_t batch_id = 0; batch_id < batch_size; ++batch_id) {         \
+            std::cout << "Batch " << batch_id << ": ";                         \
+            for (size_t i = 0; i < tableau_width; ++i) {                       \
+                std::cout << variable[batch_id * tableau_width + i] << " ";    \
+            }                                                                  \
+            std::cout << "\n";                                                 \
+        }                                                                      \
+    } while (0)
 
 #define PRINT_VECTOR_3D(v)                                                     \
-  std::cout << #v << ":\n";                                                    \
-  for (size_t i = 0; i < v.size(); ++i) {                                      \
-    std::cout << "Batch " << i << ":\n";                                       \
-    for (size_t j = 0; j < v[i].size(); ++j) {                                 \
-      for (size_t k = 0; k < v[i][j].size(); ++k) {                            \
-        std::cout << v[i][j][k] << " ";                                        \
-      }                                                                        \
-      std::cout << "\n";                                                       \
-    }                                                                          \
-    std::cout << "\n";                                                         \
-  }
+    std::cout << #v << ":\n";                                                  \
+    for (size_t i = 0; i < v.size(); ++i) {                                    \
+        std::cout << "Batch " << i << ":\n";                                   \
+        for (size_t j = 0; j < v[i].size(); ++j) {                             \
+            for (size_t k = 0; k < v[i][j].size(); ++k) {                      \
+                std::cout << v[i][j][k] << " ";                                \
+            }                                                                  \
+            std::cout << "\n";                                                 \
+        }                                                                      \
+        std::cout << "\n";                                                     \
+    }
 
 #define PRINT_VECTOR_2D(v)                                                     \
-  std::cout << #v << ":\n";                                                    \
-  for (size_t i = 0; i < v.size(); ++i) {                                      \
-    std::cout << "Batch " << i << ":\n";                                       \
-    for (size_t j = 0; j < v[i].size(); ++j) {                                 \
-      std::cout << v[i][j] << " ";                                             \
-    }                                                                          \
-    std::cout << "\n\n";                                                       \
-  }
+    std::cout << #v << ":\n";                                                  \
+    for (size_t i = 0; i < v.size(); ++i) {                                    \
+        std::cout << "Batch " << i << ":\n";                                   \
+        for (size_t j = 0; j < v[i].size(); ++j) {                             \
+            std::cout << v[i][j] << " ";                                       \
+        }                                                                      \
+        std::cout << "\n\n";                                                   \
+    }
 
-
-
-template <typename T>
-class RawPointer3D {
-    T*** ptr;
+template <typename T> class RawPointer3D {
+    T ***ptr;
     int dim1, dim2, dim3;
 
-public:
+  public:
     // Constructor using dimensions
     RawPointer3D(int d1, int d2, int d3) : dim1(d1), dim2(d2), dim3(d3) {
         allocate();
@@ -69,7 +66,7 @@ public:
     }
 
     // Constructor using a 3D vector
-    RawPointer3D(const std::vector<std::vector<std::vector<T>>>& vec) {
+    RawPointer3D(const std::vector<std::vector<std::vector<T>>> &vec) {
         dim1 = vec.size();
         dim2 = (dim1 > 0) ? vec[0].size() : 0;
         dim3 = (dim2 > 0) ? vec[0][0].size() : 0;
@@ -88,15 +85,13 @@ public:
         delete[] ptr;
     }
 
-  T*** data(){
-    return ptr;
-  }
-  
+    T ***data() { return ptr; }
+
     // Allocate memory for the 3D pointer
     void allocate() {
-        ptr = new T**[dim1];
+        ptr = new T **[dim1];
         for (int i = 0; i < dim1; ++i) {
-            ptr[i] = new T*[dim2];
+            ptr[i] = new T *[dim2];
             for (int j = 0; j < dim2; ++j) {
                 ptr[i][j] = new T[dim3];
             }
@@ -115,7 +110,7 @@ public:
     }
 
     // Copy data from pointer to vector
-    void CopyPointerToVector(std::vector<std::vector<std::vector<T>>>& vec) {
+    void CopyPointerToVector(std::vector<std::vector<std::vector<T>>> &vec) {
         vec.resize(dim1);
         for (int i = 0; i < dim1; ++i) {
             vec[i].resize(dim2);
@@ -129,7 +124,8 @@ public:
     }
 
     // Copy data from vector to pointer
-    void CopyVectorToPointer(const std::vector<std::vector<std::vector<T>>>& vec) {
+    void
+    CopyVectorToPointer(const std::vector<std::vector<std::vector<T>>> &vec) {
         for (int i = 0; i < dim1; ++i) {
             for (int j = 0; j < dim2; ++j) {
                 for (int k = 0; k < dim3; ++k) {
@@ -150,15 +146,13 @@ public:
             std::cout << "----" << std::endl;
         }
     }
-  
 };
 
-template <typename T>
-class RawPointer2D {
-    T** ptr;
+template <typename T> class RawPointer2D {
+    T **ptr;
     int dim1, dim2;
 
-public:
+  public:
     // Constructor using dimensions
     RawPointer2D(int d1, int d2) : dim1(d1), dim2(d2) {
         allocate();
@@ -166,7 +160,7 @@ public:
     }
 
     // Constructor using a 2D vector
-    RawPointer2D(const std::vector<std::vector<T>>& vec) {
+    RawPointer2D(const std::vector<std::vector<T>> &vec) {
         dim1 = vec.size();
         dim2 = (dim1 > 0) ? vec[0].size() : 0;
         allocate();
@@ -183,7 +177,7 @@ public:
 
     // Allocate memory for the 2D pointer
     void allocate() {
-        ptr = new T*[dim1];
+        ptr = new T *[dim1];
         for (int i = 0; i < dim1; ++i) {
             ptr[i] = new T[dim2];
         }
@@ -199,7 +193,7 @@ public:
     }
 
     // Copy data from pointer to vector
-    void CopyPointerToVector(std::vector<std::vector<T>>& vec) {
+    void CopyPointerToVector(std::vector<std::vector<T>> &vec) {
         vec.resize(dim1);
         for (int i = 0; i < dim1; ++i) {
             vec[i].resize(dim2);
@@ -210,7 +204,7 @@ public:
     }
 
     // Copy data from vector to pointer
-    void CopyVectorToPointer(const std::vector<std::vector<T>>& vec) {
+    void CopyVectorToPointer(const std::vector<std::vector<T>> &vec) {
         for (int i = 0; i < dim1; ++i) {
             for (int j = 0; j < dim2; ++j) {
                 ptr[i][j] = vec[i][j];
@@ -218,10 +212,7 @@ public:
         }
     }
 
-    T** data(){
-    return ptr;
-    }
-
+    T **data() { return ptr; }
 
     void print() {
         for (int i = 0; i < dim1; ++i) {
@@ -231,5 +222,4 @@ public:
             std::cout << std::endl;
         }
     }
-  
 };
