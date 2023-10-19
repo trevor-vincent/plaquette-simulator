@@ -33,7 +33,7 @@ test-cpp:
 
 test-cpp-omp:
 	rm -rf ./BuildTestsOMP
-	cmake . -BBuildTestsOMP -DPLAQUETTE_SIMULATOR_BUILD_TESTS=On -DKOKKOS_ENABLE_OPENMP=On
+	cmake . -BBuildTestsOMP -DPLAQUETTE_SIMULATOR_BUILD_TESTS=On -DKokkos_ENABLE_OPENMP=On
 	cmake --build ./BuildTestsOMP
 	./BuildTestsOMP/plaquette_simulator/src/tests/test_runner
 
