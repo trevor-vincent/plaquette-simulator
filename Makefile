@@ -30,6 +30,14 @@ test-cpp:
 	cmake --build ./BuildTests
 	./BuildTests/plaquette_simulator/src/tests/test_runner
 
+
+test-cpp-omp:
+	rm -rf ./BuildTestsOMP
+	cmake . -BBuildTestsOMP -DPLAQUETTE_SIMULATOR_BUILD_TESTS=On -DKOKKOS_ENABLE_OPENMP=On
+	cmake --build ./BuildTestsOMP
+	./BuildTestsOMP/plaquette_simulator/src/tests/test_runner
+
+
 clean: clean-build clean-pyc clean-test
 	rm -rf tmp
 	rm -rf *.dat
