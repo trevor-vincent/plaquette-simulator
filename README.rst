@@ -10,14 +10,25 @@ The `Plaquette-HPC-Simulator <https://github.com/qc-design/plaquette-hpc-simualt
 Installation
 ============
 
-The basic dependencies for installation are cmake and ninja.
-
-The C++ tests/examples and python bindings can be built independently by
+You can install just the python interface with (this quietly builds the C++ backend):
 
 .. code-block:: console
 
-   cmake -Bbuild -G Ninja
-   cmake --build ./build
+   pip install -r requirements.txt
+   CMAKE_ARGS="-DKokkos_ENABLE_OPENMP=ON" python -m pip install .
+
+The C++ backend can be built independently by
+
+.. code-block:: console
+
+   cmake -B build -DKokkos_ENABLE_OPENMP=ON -G Ninja
+   cmake --build build
+
+You can run the python frontend tests with
+   
+.. code-block:: console
+
+   make test-python
 
    
 You can run the C++ backend tests with
@@ -26,22 +37,13 @@ You can run the C++ backend tests with
 
    make test-cpp
 
-
-You can install just the python interface with (this quietly builds the C++ backend):
-
-.. code-block:: console
-
-   pip install -r requirements.txt
-   pip install .
-
-
-You can run the python frontend tests with
+Supported backend options are "SERIAL", "OPENMP", "THREADS", "HIP" and "CUDA" and the corresponding build switches are ``-DKokkos_ENABLE_BACKEND=ON``, where one needs to replace ``BACKEND``.
+One can activate simultaneously one serial, one parallel CPU host (e.g. "OPENMP", "THREADS") and one parallel GPU device backend (e.g. "HIP", "CUDA"), but not two of any category at the same time.
+For "HIP" and "CUDA", the appropriate software stacks are required to enable compilation and subsequent use.
+Similarly, the CMake option ``-DKokkos_ARCH_{...}=ON`` must also be specified to target a given architecture.
+A list of the architectures is found on the `Kokkos wiki <https://github.com/kokkos/kokkos/wiki/Macros#architectures>`_.
+Note that "THREADS" backend is not recommended since `Kokkos <https://github.com/kokkos/kokkos-core-wiki/blob/17f08a6483937c26e14ec3c93a2aa40e4ce081ce/docs/source/ProgrammingGuide/Initialization.md?plain=1#L67>`_ does not guarantee its safety.
    
-.. code-block:: console
-
-   make test-python
-
-
 
 Usage
 ==========
