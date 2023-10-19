@@ -172,14 +172,12 @@ public:
 
     if (seed >= 0) {
       seed_ = seed;
-      rand_pool_ =
-          std::make_unique<Kokkos::Random_XorShift64_Pool<Kokkos::DefaultExecutionSpace>>(
-              seed);
+      rand_pool_ = std::make_unique<
+          Kokkos::Random_XorShift64_Pool<Kokkos::DefaultExecutionSpace>>(seed);
     } else {
       seed_ = 213434232223;
-      rand_pool_ =
-          std::make_unique<Kokkos::Random_XorShift64_Pool<Kokkos::DefaultExecutionSpace>>(
-              seed_);
+      rand_pool_ = std::make_unique<
+          Kokkos::Random_XorShift64_Pool<Kokkos::DefaultExecutionSpace>>(seed_);
     }
   }
 
@@ -489,16 +487,18 @@ public:
     Kokkos::View<Precision **, Kokkos::HostSpace> r_host("r_host", batch_size_,
                                                          tableau_width_);
 
-    Kokkos::deep_copy(*x_,
-                      UnmanagedHostMat3DView(x.data(), x_->extent(0),
-                                             x_->extent(1), x_->extent(2)));
+    Kokkos::deep_copy(
+        *x_, Kokkos::View<Precision ***, Kokkos::HostSpace,
+                          Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
+                 x.data(), x_->extent(0), x_->extent(1), x_->extent(2)));
 
-    Kokkos::deep_copy(*z_,
-                      UnmanagedHostMat3DView(z.data(), z_->extent(0),
-                                             z_->extent(1), z_->extent(2)));
+    Kokkos::deep_copy(
+        *z_, Kokkos::View<Precision ***, Kokkos::HostSpace,
+                          Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
+                 z.data(), z_->extent(0), z_->extent(1), z_->extent(2)));
 
     Kokkos::deep_copy(*r_,
-                      Kokkos::View<Precision**, Kokkos::HostSpace,
+                      Kokkos::View<Precision **, Kokkos::HostSpace,
                                    Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
                           r.data(), r_->extent(0), r_->extent(1)));
   }
@@ -523,7 +523,7 @@ public:
                      Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
             z.data(), z_->extent(0), z_->extent(1), z_->extent(2)),
         *z_);
-    Kokkos::deep_copy(Kokkos::View<Precision**, Kokkos::HostSpace,
+    Kokkos::deep_copy(Kokkos::View<Precision **, Kokkos::HostSpace,
                                    Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
                           r.data(), r_->extent(0), r_->extent(1)),
                       *r_);

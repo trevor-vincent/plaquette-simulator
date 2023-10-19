@@ -12,7 +12,6 @@
 #include <catch2/catch.hpp>
 
 #include "CliffordState.hpp"
-#include "TableauState.hpp"
 #include "Test_Helpers.hpp"
 
 using namespace Plaquette;
