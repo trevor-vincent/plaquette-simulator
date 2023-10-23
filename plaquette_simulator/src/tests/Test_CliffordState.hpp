@@ -75,6 +75,7 @@ TEMPLATE_TEST_CASE("CliffordState::Measure0",
         kokkos_state_1.ApplyHadamardGate(0);
         kokkos_state_1.MeasureQubit(0);
         auto result = kokkos_state_1.GetMeasurement(0, 0);
+        REQUIRE(result.has_value());
         REQUIRE(result.value().first == 1);  // Check the measured value.
         REQUIRE(result.value().second == 1); // Check that the measurement was
     }
