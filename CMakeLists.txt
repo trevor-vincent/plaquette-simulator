@@ -120,6 +120,12 @@ target_include_directories(plaquette_simulator_bindings PUBLIC ${PLAQUETTE_SIMUL
 target_link_libraries(plaquette_simulator_bindings PUBLIC kokkos)
 endif()
 
+
+if(PLAQUETTE_SIMULATOR_BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
+endif()
+
+
 if (PLAQUETTE_SIMULATOR_BUILD_TESTS)
   add_subdirectory("plaquette_simulator/src/tests")
 endif()

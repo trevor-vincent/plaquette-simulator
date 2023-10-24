@@ -1,6 +1,7 @@
 #define CATCH_CONFIG_RUNNER
 // #include "Test_CliffordStateKokkos.hpp"
 #include "Test_CliffordState.hpp"
+#include "Test_CliffordCircuit.hpp"
 #include <Kokkos_Core.hpp>
 #include <catch2/catch.hpp>
 
