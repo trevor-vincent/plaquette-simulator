@@ -19,7 +19,7 @@ keywords = ["Quantum error correction", "qec", "quantum computing", "fault toler
 
 [project.urls]
 "Homepage" = "https://docs.plaquette.design/projects/simulator"
-"Bug Tracker" = "https://github.com/qc-design/plaquette-simulator/issues"
+"Bug Tracker" = "https://github.com/trevor-vincent/plaquette-simulator/issues"
 
 [tool.cibuildwheel]
 archs = ["auto64"]

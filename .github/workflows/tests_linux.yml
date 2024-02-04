@@ -65,6 +65,6 @@ jobs:
     - name: Install Python packages
       run: pip install -r requirements.txt -r requirements_dev.txt  && pip install .
     - name: Install Python packages
-      run: pip install git+https://github.com/qc-design/plaquette.git
+      run: pip install git+https://github.com/trevor-vincent/plaquette.git
     - name: Run unit tests
       run: pytest

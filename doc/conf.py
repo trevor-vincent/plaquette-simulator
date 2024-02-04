@@ -134,7 +134,7 @@ todo_include_todos = True
 # pixels large.
 html_theme = "furo"
 html_theme_options = {
-    "source_repository": "https://github.com/qc-design/plaquette-simulator/",
+    "source_repository": "https://github.com/trevor-vincent/plaquette-simulator/",
     "source_branch": "main",
     "source_directory": "doc/",
 }

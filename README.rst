@@ -3,7 +3,7 @@ Plaquette Simulator Plugin
 
 .. header-start-inclusion-marker-do-not-remove
 
-The `Plaquette-Simulator <https://github.com/qc-design/plaquette-simualtor>`_ plugin extends the `Plaquette <https://github.com/qc-design/plaquette>`_ error correction software, providing a high-performance Clifford simulator for multi-core CPUs and AMD/NVIDIA GPUs.
+The `Plaquette-Simulator <https://github.com/trevor-vincent/plaquette-simualtor>`_ plugin extends the `Plaquette <https://github.com/trevor-vincent/plaquette>`_ error correction software, providing a high-performance Clifford simulator for multi-core CPUs and AMD/NVIDIA GPUs.
 
 .. installation-start-inclusion-marker-do-not-remove
 
